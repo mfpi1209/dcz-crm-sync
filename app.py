@@ -165,6 +165,9 @@ def _nav_load_user_data():
     # do Acadêmico. Ter qualquer sub equivale a ter acesso ao modulo.
     if any(p.startswith("disparador_whatsapp_") for p in pages):
         pages.add("disparador_whatsapp")
+    # Inscrição - Automática: quem administra também opera (o menu testa a master).
+    if "inscricao_automatica_admin" in pages:
+        pages.add("inscricao_automatica")
     # Fila de chamados é uma página só, escopada por departamento no backend.
     # Quem tem a fila de Marketing (`chamados_marketing`) precisa abrir a
     # mesma página `chamados_ti` — lá só verá os chamados de Marketing.
@@ -293,6 +296,7 @@ from routes.materias_alunos import materias_alunos_bp
 from routes.academico_interacoes import academico_interacoes_bp
 from routes.blog_posts import blog_posts_bp, register_blog_schedule_job
 from routes.inscricao import inscricao_bp
+from routes.inscricao_auto import inscricao_auto_bp
 from routes.tracker_tarefas import tracker_tarefas_bp
 from routes.conexao_siaa import conexao_siaa_bp
 from routes.dist_comercial_schedule import (
@@ -332,6 +336,7 @@ app.register_blueprint(materias_alunos_bp)
 app.register_blueprint(academico_interacoes_bp)
 app.register_blueprint(blog_posts_bp)
 app.register_blueprint(inscricao_bp)
+app.register_blueprint(inscricao_auto_bp)
 app.register_blueprint(tracker_tarefas_bp)
 app.register_blueprint(conexao_siaa_bp)
 app.register_blueprint(dist_comercial_schedule_bp)

@@ -407,6 +407,8 @@ const PAGE_LABELS = {
     intelligence: 'Inteligência', inadimplencia: 'Inadimplência',
     feedback: 'Feedback', config: 'Configurações', schedule: 'Agendamento',
     inscricao: 'Inscrições',
+    inscricao_automatica: 'Inscrição - Automática',
+    inscricao_automatica_admin: 'Inscrição - Automática · administrar',
     comparar_cursos: 'Comparar Cursos',
     recomendacao_cursos: 'Recomendação',
     localizacao_polos: 'Localização',
@@ -585,6 +587,7 @@ const PAGE_GROUPS_CONFIG = [
         color: 'var(--secondary)',
         pages: [
             'dist_consultor', 'comercial_rgm', 'bwipo_comercial', 'premiacao_admin', 'dist_comercial', 'inscricao',
+            'inscricao_automatica', 'inscricao_automatica_admin',
             'recadastros', 'comercial_dashboard', 'auditoria_comercial',
             'atualizar_preco', 'precos_bwipo', 'leads_parados', 'minha_performance', 'repasse',
             'captacao', 'clicks', 'leads_promotores',
