@@ -4,6 +4,25 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-26 — Senha: troca pelo próprio usuário e troca obrigatória (`troca_senha.py`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** os importados do Kommo/DataCrazy entram com a mesma senha padrão e não conseguiam trocá-la sozinhos.
+- **Tela `/trocar-senha` (GET/POST, `routes/auth.trocar_senha`):**
+  - **Campos:** senha atual + nova senha duas vezes.
+  - **Regras (`troca_senha.validar_nova_senha`):** 8 a 128 caracteres; a confirmação precisa conferir; a nova precisa ser diferente da atual.
+  - **Gravação:** scrypt (`gerar_hash`) e flag desligada, na mesma `UPDATE`. A senha atual também confere com o hash SHA-256 antigo.
+  - **Acesso:** qualquer usuário logado, pelo link "Trocar minha senha" no card Sessão do Meu Perfil. O login de emergência (`user_id` 0) não tem senha no banco e recebe uma mensagem em vez da troca.
+  - **Visual:** a tela estende `login.html`, que ganhou os blocos `titulo` e `conteudo`. O HTML do login não mudou.
+- **Flag `app_users.precisa_trocar_senha` (BOOLEAN NOT NULL DEFAULT FALSE):**
+  - **Criação:** feita no boot por `troca_senha.garantir_coluna` (`ALTER … ADD COLUMN IF NOT EXISTS`). Se falhar, só avisa no log.
+  - **Login:** copia a flag para a sessão. Sem a coluna, lê FALSE e o login segue.
+  - **Bloqueio (`troca_senha.bloqueio`, chamado no `require_auth`):** com a flag ligada, página redireciona para `/trocar-senha` e `/api/*` recebe 403 `{"redirect": "/trocar-senha"}` (redirect quebraria os `fetch`). Ficam livres `/trocar-senha`, `/logout`, `/login`, `/health` e `/static/`. `DEV_SKIP_AUTH` não é afetado.
+- **Decisão do Raphael (26/11): nada liga a flag automaticamente.**
+  - **Fora deste PR:** a importação, o login com a senha padrão e a senha definida pelo admin na tela de Usuários.
+  - **Para obrigar alguém a trocar:** `UPDATE app_users SET precisa_trocar_senha = TRUE WHERE id = <id>;`, que vale no próximo login da pessoa. Hashes scrypt têm sal, então achar quem ainda usa a senha padrão pede conferência em Python, um a um, e não um `UPDATE` em SQL puro.
+- **Não muda:** a senha padrão das importações, a tela de Usuários do admin, o login de emergência, `_db_auth` e as permissões.
+- **Testes:** `tests/test_troca_senha.py` (34), com banco simulado.
+
 ### 2026-11-26 — Modernização, Fase 2: testes no CI antes do build
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** o pytest roda antes do build da imagem. Se algum teste falhar, não há build nem deploy. Os testes também rodam em PR para a `master`.
