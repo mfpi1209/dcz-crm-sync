@@ -1162,66 +1162,6 @@ def _turma_defaults(nivel, ano):
 
 
 # ---------------------------------------------------------------------------
-# Rotas — Meta Campaigns (Marketing Performance Dashboard)
-# ---------------------------------------------------------------------------
-
-@dashboard_bp.route("/api/meta/campaigns")
-def api_meta_campaigns():
-    """Busca dados de campanhas do Meta Ads via webhook do n8n."""
-    import requests
-    
-    WEBHOOK_URL = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/count_leads_meta"
-    
-    from_date = request.args.get("from", "")
-    to_date = request.args.get("to", "")
-    
-    try:
-        payload = {}
-        if from_date:
-            payload["from"] = from_date
-        if to_date:
-            payload["to"] = to_date
-        
-        response = requests.post(WEBHOOK_URL, json=payload, timeout=30)
-        response.raise_for_status()
-        
-        data = response.json()
-        
-        if isinstance(data, list):
-            campaigns = data
-        elif isinstance(data, dict) and "campaigns" in data:
-            campaigns = data["campaigns"]
-        else:
-            campaigns = [data] if data else []
-        
-        return jsonify({
-            "campaigns": campaigns,
-            "status": "OK",
-            "count": len(campaigns)
-        })
-    except requests.exceptions.Timeout:
-        return jsonify({
-            "campaigns": [],
-            "status": "TIMEOUT",
-            "error": "Webhook não respondeu a tempo"
-        })
-    except requests.exceptions.RequestException as e:
-        traceback.print_exc()
-        return jsonify({
-            "campaigns": [],
-            "status": "ERROR",
-            "error": str(e)
-        })
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({
-            "campaigns": [],
-            "status": "ERROR",
-            "error": str(e)
-        })
-
-
-# ---------------------------------------------------------------------------
 # Rotas — Google Campaigns (Marketing Performance Dashboard)
 # ---------------------------------------------------------------------------
 
@@ -1249,96 +1189,134 @@ def _fetch_paginated(url_base, headers, limit=1000):
 
 @dashboard_bp.route("/api/google/campaigns")
 def api_google_campaigns():
-    """Busca dados de campanhas do Google Ads diretamente do Supabase.
+    """Campanhas Google (leads do Supabase) + matrículas do banco google_ads ligadas pelo gclid.
 
-    Leads novos (novo_ganho_perdido IS NULL) são filtrados por data_criacao.
-    Leads ganhos/perdidos são filtrados por updated_at.
+    Leads novos por data_criacao, ganho/perdido por updated_at (dia em BRT).
+    Ganho/perdido vinham do Kommo e param em set/2026; a conversão real é matrícula / lead.
+    Cache de 5 min por período em services.google_ads_insights.
     """
-    from_date = request.args.get("from", "")
-    to_date = request.args.get("to", "")
+    from services.google_ads_insights import google_campaigns
+
+    today = date.today().isoformat()
+    from_date = request.args.get("from", "") or today
+    to_date = request.args.get("to", "") or today
+    try:
+        date.fromisoformat(from_date)
+        date.fromisoformat(to_date)
+    except ValueError:
+        return jsonify({"campaigns": [], "status": "ERROR", "error": "Data inválida"}), 400
 
     try:
-        headers = {
-            "apikey": SUPABASE_GOOGLE_KEY,
-            "Authorization": f"Bearer {SUPABASE_GOOGLE_KEY}",
-        }
-
-        base_select = (
-            f"{SUPABASE_GOOGLE_URL}/rest/v1/campanhas_google"
-            f"?select=utm_campaign,utm_source,utm_medium,novo_ganho_perdido"
-        )
-
-        # Request A — novos (novo_ganho_perdido IS NULL), filtrar por data_criacao
-        url_a = f"{base_select}&novo_ganho_perdido=is.null"
-        if from_date:
-            url_a += f"&data_criacao=gte.{from_date}T00:00:00"
-        if to_date:
-            url_a += f"&data_criacao=lte.{to_date}T23:59:59.999"
-
-        # Request B — ganhos/perdidos, filtrar por updated_at
-        url_b = f"{base_select}&novo_ganho_perdido=in.(ganho,perdido)"
-        if from_date:
-            url_b += f"&updated_at=gte.{from_date}T00:00:00"
-        if to_date:
-            url_b += f"&updated_at=lte.{to_date}T23:59:59.999"
-
-        rows_a = _fetch_paginated(url_a, headers)
-        rows_b = _fetch_paginated(url_b, headers)
-        all_rows = rows_a + rows_b
-
-        grouped = {}
-        for row in all_rows:
-            key = row.get("utm_campaign") or "Sem nome"
-            if key not in grouped:
-                grouped[key] = {
-                    "utm_campaign": row.get("utm_campaign"),
-                    "utm_source": None,
-                    "utm_medium": None,
-                    "novos": 0,
-                    "ganhos": 0,
-                    "perdidos": 0,
-                }
-
-            if grouped[key]["utm_source"] is None and row.get("utm_source"):
-                grouped[key]["utm_source"] = row["utm_source"]
-            if grouped[key]["utm_medium"] is None and row.get("utm_medium"):
-                grouped[key]["utm_medium"] = row["utm_medium"]
-
-            ngp = (row.get("novo_ganho_perdido") or "").strip().lower()
-            if ngp == "ganho":
-                grouped[key]["ganhos"] += 1
-            elif ngp == "perdido":
-                grouped[key]["perdidos"] += 1
-            else:
-                grouped[key]["novos"] += 1
-
-        campaigns = list(grouped.values())
-
+        data = google_campaigns(from_date, to_date)
         return jsonify({
-            "campaigns": campaigns,
+            "campaigns": data["campaigns"],
+            "insights": data["insights"],
             "status": "OK",
-            "count": len(campaigns),
+            "count": len(data["campaigns"]),
         })
     except requests.exceptions.Timeout:
-        return jsonify({
-            "campaigns": [],
-            "status": "TIMEOUT",
-            "error": "Supabase não respondeu a tempo",
-        })
-    except requests.exceptions.RequestException as e:
-        traceback.print_exc()
-        return jsonify({
-            "campaigns": [],
-            "status": "ERROR",
-            "error": str(e),
-        })
+        return jsonify({"campaigns": [], "status": "TIMEOUT", "error": "Supabase não respondeu a tempo"})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({
-            "campaigns": [],
-            "status": "ERROR",
-            "error": str(e),
-        })
+        return jsonify({"campaigns": [], "status": "ERROR", "error": str(e)})
+
+
+# ---------------------------------------------------------------------------
+# Rotas — Meta Campaigns (Marketing Performance Dashboard)
+# ---------------------------------------------------------------------------
+# Até 30/09/2026: n8n (Supabase campanhas_meta, alimentada pelo Kommo).
+# De 01/10/2026 em diante: Bwipo (origem de anúncio do contato, services/bwipo_campanhas.py).
+
+META_N8N_WEBHOOK = "https://n8n-new-n8n.ca31ey.easypanel.host/webhook/count_leads_meta"
+
+
+def _periodo_args():
+    """(from, to) como date; vazio = hoje. ValueError se a data vier errada."""
+    today = date.today()
+    f = request.args.get("from", "") or today.isoformat()
+    t = request.args.get("to", "") or today.isoformat()
+    return date.fromisoformat(f), date.fromisoformat(t)
+
+
+def _meta_n8n(ini: date, fim: date) -> list:
+    """Leads Meta do Kommo (até 30/09/2026). O n8n responde 200 com corpo vazio quando não há lead."""
+    response = requests.post(META_N8N_WEBHOOK, json={"from": ini.isoformat(), "to": fim.isoformat()}, timeout=30)
+    response.raise_for_status()
+    if not response.content.strip():
+        return []
+    data = response.json()
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and "campaigns" in data:
+        return data["campaigns"]
+    return [data] if data else []
+
+
+def _sem_campanha_supabase(ini: date, fim: date) -> list:
+    """Leads sem campanha do Kommo (até 30/09/2026), Supabase `sem_campanha`."""
+    headers = {"apikey": SUPABASE_GOOGLE_KEY, "Authorization": f"Bearer {SUPABASE_GOOGLE_KEY}"}
+    url_base = (
+        f"{SUPABASE_GOOGLE_URL}/rest/v1/sem_campanha?select=perdido_ganho"
+        f"&updated_at=gte.{ini.isoformat()}T00:00:00-03:00"
+        f"&updated_at=lte.{fim.isoformat()}T23:59:59.999-03:00"
+    )
+    rows = _fetch_paginated(url_base, headers)
+    cont = {"novos": 0, "ganhos": 0, "perdidos": 0}
+    for row in rows:
+        pg = (row.get("perdido_ganho") or "").strip().lower()
+        cont["ganhos" if pg == "ganho" else "perdidos" if pg == "perdido" else "novos"] += 1
+    if not rows:
+        return []
+    return [{"utm_campaign": "Sem Campanha", "utm_source": "sem_campanha", "utm_medium": "—", **cont}]
+
+
+def _campanhas_por_periodo(parte_bwipo: str, legado):
+    """Junta o legado (até 30/09) e o Bwipo (01/10+). Uma parte com erro não derruba a outra."""
+    from services import bwipo_campanhas as bc
+
+    try:
+        ini, fim = _periodo_args()
+    except ValueError:
+        return jsonify({"campaigns": [], "status": "ERROR", "error": "Data inválida"}), 400
+
+    campaigns, erros, resumo = [], [], None
+    leg = bc.periodo_legado(ini, fim)
+    if leg:
+        try:
+            campaigns += legado(*leg)
+        except requests.exceptions.Timeout:
+            erros.append("TIMEOUT")
+        except Exception as e:
+            traceback.print_exc()
+            erros.append(f"legado: {e}")
+    bw = bc.periodo_bwipo(ini, fim)
+    if bw:
+        try:
+            data = bc.leads_bwipo(*bw)
+            campaigns += data[parte_bwipo]
+            resumo = data["resumo"]
+        except Exception as e:
+            traceback.print_exc()
+            erros.append(f"bwipo: {e}")
+
+    partes = int(bool(leg)) + int(bool(bw))
+    if erros and len(erros) >= partes:
+        status = "TIMEOUT" if erros == ["TIMEOUT"] else "ERROR"
+    else:
+        status = "OK" if campaigns else "VAZIO"
+    out = {"campaigns": campaigns, "status": status, "count": len(campaigns)}
+    if erros:
+        out["error"] = "; ".join(erros)
+    if resumo is not None:
+        out["pendentes"] = resumo["pendentes"]
+        out["bwipo"] = resumo
+    return jsonify(out)
+
+
+@dashboard_bp.route("/api/meta/campaigns")
+def api_meta_campaigns():
+    """Leads Meta por campanha: n8n até 30/09/2026, Bwipo de 01/10/2026 em diante (por safra, com matrículas)."""
+    return _campanhas_por_periodo("meta", _meta_n8n)
 
 
 # ---------------------------------------------------------------------------
@@ -1347,83 +1325,9 @@ def api_google_campaigns():
 
 @dashboard_bp.route("/api/sem-campanha/leads")
 def api_sem_campanha_leads():
-    """Busca leads sem campanha diretamente do Supabase (tabela sem_campanha).
-
-    Filtra por updated_at (que coincide com data_criacao para leads não
-    atualizados e reflete a data de mudança para ganho/perdido).
-    Retorna um único item agregado com utm_campaign='Sem Campanha'.
-    """
-    from_date = request.args.get("from", "")
-    to_date = request.args.get("to", "")
-
-    try:
-        headers = {
-            "apikey": SUPABASE_GOOGLE_KEY,
-            "Authorization": f"Bearer {SUPABASE_GOOGLE_KEY}",
-        }
-
-        url_base = (
-            f"{SUPABASE_GOOGLE_URL}/rest/v1/sem_campanha"
-            f"?select=perdido_ganho"
-        )
-        if from_date:
-            url_base += f"&updated_at=gte.{from_date}T00:00:00"
-        if to_date:
-            url_base += f"&updated_at=lte.{to_date}T23:59:59.999"
-
-        all_rows = _fetch_paginated(url_base, headers)
-
-        novos = 0
-        ganhos = 0
-        perdidos = 0
-        for row in all_rows:
-            pg = (row.get("perdido_ganho") or "").strip().lower()
-            if pg == "ganho":
-                ganhos += 1
-            elif pg == "perdido":
-                perdidos += 1
-            else:
-                novos += 1
-
-        if all_rows:
-            campaigns = [{
-                "utm_campaign": "Sem Campanha",
-                "utm_source": "sem_campanha",
-                "utm_medium": "—",
-                "novos": novos,
-                "ganhos": ganhos,
-                "perdidos": perdidos,
-            }]
-            count = 1
-        else:
-            campaigns = []
-            count = 0
-
-        return jsonify({
-            "campaigns": campaigns,
-            "status": "OK",
-            "count": count,
-        })
-    except requests.exceptions.Timeout:
-        return jsonify({
-            "campaigns": [],
-            "status": "TIMEOUT",
-            "error": "Supabase não respondeu a tempo",
-        })
-    except requests.exceptions.RequestException as e:
-        traceback.print_exc()
-        return jsonify({
-            "campaigns": [],
-            "status": "ERROR",
-            "error": str(e),
-        })
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({
-            "campaigns": [],
-            "status": "ERROR",
-            "error": str(e),
-        })
+    """Leads sem campanha (um item agregado): Supabase `sem_campanha` até 30/09/2026,
+    Bwipo de 01/10/2026 em diante (contato sem UTM, anúncio, gclid nem fbclid; por safra)."""
+    return _campanhas_por_periodo("sem_campanha", _sem_campanha_supabase)
 
 
 # ---------------------------------------------------------------------------

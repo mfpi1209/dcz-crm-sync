@@ -4,6 +4,35 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-26 — Performance de Campanhas: Meta e Sem Campanha passam a vir do Bwipo (01/10/2026 em diante)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** a tela Meta Ads · Performance mostrava "Status: ERROR" e zero. O Raphael pediu para ler Meta e Sem Campanha do Bwipo, com backfill desde 01/10.
+- **Diagnóstico (26/11):**
+  - **Supabase parado:** `campanhas_meta` (lida pelo n8n `count_leads_meta`) e `sem_campanha` param em 01/10/2026. Eram alimentadas pelo Kommo.
+  - **Erro na tela:** o n8n responde 200 com corpo vazio e a rota quebrava no `response.json()`.
+  - **Google segue vivo:** `campanhas_google` continua recebendo leads dos formulários do site.
+- **Onde está a origem no Bwipo:** no **contato**, e só em `GET /api/contacts/{id}`. A listagem e o contato embutido no negócio não trazem esses campos. São eles: `adUtmSource/Medium/Campaign/Content/Term`, `adCtwaClid`, `adSourceId/Type`, `adHeadline`, `adResolved*` e também `gclid`, `fbclid`, `referrer`. O `adUtmCampaign` segue o mesmo padrão de nome da antiga `campanhas_meta` (ex.: `cs.grad.whats.0826.terapia-ocupacional`). O `bwipo_contacts`/`bwipo_deals.origem` não serve: `origem` está vazia e o `source` "Facebook" só existe nos importados do Kommo em 22/09.
+- **Coleta (`services/bwipo_campanhas.py`):**
+  - **Tabela:** `bwipo_contact_ads`, uma linha por contato. É criada em `db._ensure_bwipo_sync_tables`, junto com o índice `idx_bwipo_deals_created`.
+  - **Job:** `bwipo_contact_ads` roda a cada 5 min (primeira vez 60 s após o boot), com até 240 s e 800 contatos por rodada. `BWIPO_CONTACT_ADS_JOB=0` desliga.
+  - **Fila:** contatos de negócio do Pipeline Principal criado desde 01/10, do mais novo para o mais antigo. O dia de hoje enche primeiro e o backfill vem atrás (~0,65 s por contato, então ~46 mil contatos levam umas 11 h).
+  - **Recoleta:** erro (até 5 tentativas, 30 min de intervalo), anúncio ainda sem `adResolveStatus=ok` (depois de 1 h) e negócio novo criado depois da coleta. A origem vale por contato, então é o último toque.
+  - **Token:** só o comercial (`BWIPO_COMERCIAL_API_TOKEN`). Em 401/403 o lote para.
+- **Classificação (`origem()`):**
+  - **Meta:** `adCtwaClid` ou `adSourceType=ad`, utm_source facebook/instagram/fb/ig/meta*, ou só `fbclid`.
+  - **Google:** `gclid` ou utm_source com "google". Fica fora desta parte; o Google continua no `services/google_ads_insights.py`.
+  - **Outra:** qualquer outra UTM. Não entra em lugar nenhum.
+  - **Sem Campanha:** nenhum sinal.
+  - **Pendente:** contato ainda não coletado. Não conta.
+- **Leitura:**
+  - **Lead:** um contato com negócio no Principal criado no período (dia em BRT), contado **por safra**: aberto/ganho/perdido pelo `status` do negócio mais recente do período (WON/LOST), como no Google.
+  - **Matrículas Meta:** RGMs da `bwipo_painel_base` com `data_matricula` no período, cujo negócio é de contato Meta.
+  - **Cache:** 3 min por período. O mês inteiro leva cerca de 2 s.
+- **Corte:** `/api/meta/campaigns` e `/api/sem-campanha/leads` juntam as duas fontes. Até 30/09 continuam no n8n/Supabase; de 01/10 em diante vêm do Bwipo (`periodo_legado` / `periodo_bwipo`). Se uma das partes falha, a outra continua. A resposta traz `pendentes`, e a tela mostra "coletando origem de N contatos".
+- **Front:** o pie "Total" agora soma aberto + ganho + perdido também para Meta e Sem Campanha (safra).
+- **Não muda:** o Google (Supabase + `google_ads`), as permissões das rotas e o `/api/meta/webhook`.
+- **Testes:** `tests/test_bwipo_campanhas.py` (classificação e corte).
+
 ### 2026-11-26 — Permissão no servidor nas rotas que faltavam (mapa central em `permissoes.py`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** fechar o que a Fase 1 deixou para depois: as rotas sem checagem (dashboard, engagement, inadimplência, crm, logs etc.). A lista foi aprovada pelo Raphael em 26/11, antes de aplicar.

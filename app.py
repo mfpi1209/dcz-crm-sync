@@ -476,6 +476,8 @@ register_aceite_reconcile(scheduler)
 register_responsible_history_job(scheduler)
 register_funnel_cache_job(scheduler)
 register_bwipo_sync_job(scheduler)
+from services.bwipo_campanhas import register_bwipo_contact_ads_job
+register_bwipo_contact_ads_job(scheduler)
 from services.kommo_leads_dia import register_job as register_kommo_leads_dia_job
 register_kommo_leads_dia_job(scheduler)
 from services.leads_rgm import register_job as register_leads_rgm_job
