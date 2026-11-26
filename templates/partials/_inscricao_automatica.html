@@ -1,0 +1,723 @@
+<div id="page-inscricao_automatica" class="hidden"
+     data-papel="{{ 'admin' if (nav_is_admin or 'inscricao_automatica_admin' in nav_pages) else 'operar' }}">
+<style>
+#page-inscricao_automatica {
+    --insa-ok: #047857; --insa-ok-bg: #d1fae5;
+    --insa-err: #b91c1c; --insa-err-bg: #fee2e2;
+    --insa-warn: #92400e; --insa-warn-bg: #fef3c7;
+    --insa-info: #1d4ed8; --insa-info-bg: #dbeafe;
+    --insa-neutral: #475569; --insa-neutral-bg: #e2e8f0;
+}
+.dark #page-inscricao_automatica {
+    --insa-ok: #6ee7b7; --insa-ok-bg: rgba(16, 185, 129, .16);
+    --insa-err: #fca5a5; --insa-err-bg: rgba(239, 68, 68, .16);
+    --insa-warn: #fcd34d; --insa-warn-bg: rgba(245, 158, 11, .16);
+    --insa-info: #93c5fd; --insa-info-bg: rgba(59, 130, 246, .16);
+    --insa-neutral: #cbd5e1; --insa-neutral-bg: rgba(148, 163, 184, .16);
+}
+#page-inscricao_automatica .insa-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .2em; color: var(--primary); }
+#page-inscricao_automatica .insa-h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-secondary); margin: 0; }
+#page-inscricao_automatica .insa-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+#page-inscricao_automatica .insa-muted { color: var(--text-muted); font-size: 12px; }
+#page-inscricao_automatica .insa-desc { color: var(--text-secondary); font-size: 13px; margin: 0 0 12px; max-width: 80ch; }
+#page-inscricao_automatica .insa-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 9999px; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+#page-inscricao_automatica .insa-pill.t-ok { background: var(--insa-ok-bg); color: var(--insa-ok); }
+#page-inscricao_automatica .insa-pill.t-erro { background: var(--insa-err-bg); color: var(--insa-err); }
+#page-inscricao_automatica .insa-pill.t-atencao { background: var(--insa-warn-bg); color: var(--insa-warn); }
+#page-inscricao_automatica .insa-pill.t-ativo { background: var(--insa-info-bg); color: var(--insa-info); }
+#page-inscricao_automatica .insa-pill.t-neutro { background: var(--insa-neutral-bg); color: var(--insa-neutral); }
+#page-inscricao_automatica .insa-alert { padding: 10px 14px; border-radius: 10px; font-size: 13px; border: 1px solid transparent; margin-bottom: 12px; line-height: 1.45; }
+#page-inscricao_automatica .insa-alert.t-ok { background: var(--insa-ok-bg); color: var(--insa-ok); border-color: currentColor; }
+#page-inscricao_automatica .insa-alert.t-erro { background: var(--insa-err-bg); color: var(--insa-err); border-color: currentColor; }
+#page-inscricao_automatica .insa-alert.t-atencao { background: var(--insa-warn-bg); color: var(--insa-warn); border-color: currentColor; }
+#page-inscricao_automatica .insa-alert.t-info { background: var(--insa-info-bg); color: var(--insa-info); border-color: currentColor; }
+#page-inscricao_automatica .insa-status { font-size: 13px; margin: 6px 0 0; min-height: 0; }
+#page-inscricao_automatica .insa-status:empty { display: none; }
+#page-inscricao_automatica .insa-status.t-ok { color: var(--insa-ok); }
+#page-inscricao_automatica .insa-status.t-erro { color: var(--insa-err); }
+#page-inscricao_automatica .insa-status.t-info { color: var(--text-secondary); }
+#page-inscricao_automatica .insa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; }
+#page-inscricao_automatica .insa-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 900px) { #page-inscricao_automatica .insa-grid-2 { grid-template-columns: 1fr; } }
+#page-inscricao_automatica .insa-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+#page-inscricao_automatica .insa-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#page-inscricao_automatica .insa-field > span:first-child { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+#page-inscricao_automatica .insa-field small { font-size: 11px; color: var(--text-muted); }
+#page-inscricao_automatica .insa-field small.insa-erro { color: var(--insa-err); font-weight: 600; }
+#page-inscricao_automatica .insa-field .input-glass { width: 100%; min-width: 0; }
+#page-inscricao_automatica .insa-field.largo { grid-column: span 2; }
+@media (max-width: 640px) { #page-inscricao_automatica .insa-field.largo { grid-column: auto; } }
+#page-inscricao_automatica [aria-invalid="true"] { border-color: var(--insa-err) !important; }
+#page-inscricao_automatica .insa-check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+#page-inscricao_automatica .insa-check input { width: 16px; height: 16px; accent-color: var(--primary); }
+#page-inscricao_automatica .insa-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#page-inscricao_automatica .insa-row-end { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+#page-inscricao_automatica .insa-btn { font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+#page-inscricao_automatica .insa-btn.mini { font-size: 12px; padding: 5px 10px; border-radius: 8px; }
+#page-inscricao_automatica .insa-btn .material-symbols-outlined { font-size: 16px; }
+#page-inscricao_automatica .insa-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+#page-inscricao_automatica .insa-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#page-inscricao_automatica table.insa-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#page-inscricao_automatica .insa-table th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+#page-inscricao_automatica .insa-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; color: var(--text-primary); }
+#page-inscricao_automatica .insa-table tbody tr:hover { background: var(--bg-elevated); }
+#page-inscricao_automatica .insa-table td.num, #page-inscricao_automatica .insa-table .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+#page-inscricao_automatica .insa-table td small, #page-inscricao_automatica .insa-sub { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+#page-inscricao_automatica .insa-ordem .nome small, #page-inscricao_automatica .insa-cab small { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; font-weight: 400; }
+#page-inscricao_automatica .insa-table td.vazio { text-align: center; color: var(--text-muted); padding: 22px 10px; }
+#page-inscricao_automatica .insa-table td.acoes { white-space: nowrap; text-align: right; }
+#page-inscricao_automatica .insa-table td.acoes .insa-btn + .insa-btn { margin-left: 4px; }
+#page-inscricao_automatica .insa-table input.input-glass { min-width: 90px; padding: 4px 8px; font-size: 12px; }
+#page-inscricao_automatica .insa-table tr.sem-cota td { opacity: .6; }
+#page-inscricao_automatica .insa-progress { height: 6px; border-radius: 9999px; background: var(--insa-neutral-bg); overflow: hidden; margin-top: 6px; min-width: 110px; }
+#page-inscricao_automatica .insa-progress > span { display: block; height: 100%; background: var(--primary); border-radius: 9999px; transition: width .4s ease; }
+#page-inscricao_automatica .insa-disjuntor { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+@media (max-width: 760px) { #page-inscricao_automatica .insa-disjuntor { grid-template-columns: 1fr; } }
+#page-inscricao_automatica .insa-alavanca { width: 46px; height: 26px; border-radius: 9999px; background: var(--insa-err-bg); border: 2px solid var(--insa-err); position: relative; }
+#page-inscricao_automatica .insa-alavanca::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--insa-err); transition: left .2s; }
+#page-inscricao_automatica .insa-alavanca.ligada { background: var(--insa-ok-bg); border-color: var(--insa-ok); }
+#page-inscricao_automatica .insa-alavanca.ligada::after { left: 22px; background: var(--insa-ok); }
+#page-inscricao_automatica .insa-fusiveis { display: flex; gap: 4px; margin-bottom: 4px; }
+#page-inscricao_automatica .insa-fusiveis i { width: 22px; height: 8px; border-radius: 3px; background: var(--insa-neutral-bg); }
+#page-inscricao_automatica .insa-fusiveis i.queimado { background: var(--insa-err); }
+#page-inscricao_automatica .insa-motores { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+#page-inscricao_automatica .insa-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; font-size: 13px; margin: 0; }
+#page-inscricao_automatica .insa-kv dt { color: var(--text-muted); }
+#page-inscricao_automatica .insa-kv dd { margin: 0; word-break: break-word; color: var(--text-primary); }
+#page-inscricao_automatica .insa-eventos { list-style: none; margin: 0; padding: 0; }
+#page-inscricao_automatica .insa-eventos li { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-size: 13px; color: var(--text-primary); }
+@media (max-width: 520px) { #page-inscricao_automatica .insa-eventos li { grid-template-columns: 1fr; gap: 2px; } }
+#page-inscricao_automatica .insa-eventos li.erro { border-left: 3px solid var(--insa-err); padding-left: 8px; }
+#page-inscricao_automatica .insa-eventos li.aviso { border-left: 3px solid var(--insa-warn); padding-left: 8px; }
+#page-inscricao_automatica .insa-eventos time { color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+#page-inscricao_automatica .insa-etapas { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+#page-inscricao_automatica .insa-etapas li { font-size: 13px; padding: 4px 0 4px 22px; position: relative; color: var(--text-secondary); }
+#page-inscricao_automatica .insa-etapas li::before { content: ""; position: absolute; left: 4px; top: 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--insa-neutral-bg); border: 2px solid var(--text-muted); }
+#page-inscricao_automatica .insa-etapas li.ok { color: var(--text-primary); }
+#page-inscricao_automatica .insa-etapas li.ok::before { background: var(--insa-ok); border-color: var(--insa-ok); }
+#page-inscricao_automatica .insa-etapas li.err { color: var(--insa-err); }
+#page-inscricao_automatica .insa-etapas li.err::before { background: var(--insa-err); border-color: var(--insa-err); }
+#page-inscricao_automatica .insa-etapas li.atual { color: var(--primary); font-weight: 600; }
+#page-inscricao_automatica .insa-etapas li.atual::before { background: var(--primary); border-color: var(--primary); animation: insa-pulso 1.2s infinite; }
+@keyframes insa-pulso { 50% { opacity: .35; } }
+#page-inscricao_automatica .insa-checks { list-style: none; margin: 8px 0; padding: 0; }
+#page-inscricao_automatica .insa-checks li { font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
+#page-inscricao_automatica .insa-checks li.ok strong { color: var(--insa-ok); }
+#page-inscricao_automatica .insa-checks li.err strong { color: var(--insa-err); }
+#page-inscricao_automatica .insa-ordem { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#page-inscricao_automatica .insa-ordem li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-elevated); }
+#page-inscricao_automatica .insa-ordem .pos { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
+#page-inscricao_automatica .insa-ordem .nome { flex: 1; min-width: 160px; }
+#page-inscricao_automatica .insa-bloco { padding: 16px 0; border-top: 1px solid var(--border-subtle); }
+#page-inscricao_automatica .insa-bloco:first-child { border-top: none; padding-top: 0; }
+#page-inscricao_automatica .insa-salvar { position: sticky; bottom: 12px; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--primary); box-shadow: var(--shadow-lg); margin-top: 12px; }
+#page-inscricao_automatica textarea.input-glass { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; min-height: 90px; resize: vertical; }
+#page-inscricao_automatica .insa-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+#page-inscricao_automatica .insa-lista-at { list-style: none; margin: 0 0 12px; padding: 0; }
+#page-inscricao_automatica .insa-lista-at li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border-subtle); font-size: 13px; }
+#page-inscricao_automatica .insa-lista-at .mail { font-weight: 600; word-break: break-all; }
+#page-inscricao_automatica details summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+#page-inscricao_automatica .insa-tabs-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#page-inscricao_automatica .insa-barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#page-inscricao_automatica .insa-barras li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(60px, 1fr) auto; gap: 8px; align-items: center; font-size: 12px; color: var(--text-primary); }
+#page-inscricao_automatica .insa-barras li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#page-inscricao_automatica .insa-barras li div { height: 8px; border-radius: 9999px; background: var(--insa-neutral-bg); overflow: hidden; }
+#page-inscricao_automatica .insa-barras li i { display: block; height: 100%; background: var(--primary); border-radius: 9999px; }
+#page-inscricao_automatica .insa-barras li.insa-muted { display: block; }
+#page-inscricao_automatica .insa-acao-ia { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--bg-elevated); }
+#page-inscricao_automatica .insa-acao-ia small { display: block; color: var(--text-secondary); font-size: 12px; margin: 2px 0 6px; }
+#page-inscricao_automatica .insa-eventos li.ferramenta code { font-size: 12px; }
+#insa-dlg { border: 1px solid var(--border); border-radius: 18px; padding: 20px; width: min(520px, calc(100vw - 32px)); background: var(--bg-card); color: var(--text-primary); box-shadow: var(--shadow-xl); }
+#insa-dlg::backdrop { background: rgba(15, 23, 42, .55); }
+#insa-dlg h4 { font-size: 16px; font-weight: 700; margin: 0 0 10px; }
+#insa-dlg .insa-dlg-texto { font-size: 14px; color: var(--text-secondary); margin: 0 0 12px; line-height: 1.45; }
+#insa-dlg .insa-dlg-texto.alerta { padding: 10px 12px; border-radius: 10px; background: rgba(220, 38, 38, .12); color: #b91c1c; border: 1px solid currentColor; }
+.dark #insa-dlg .insa-dlg-texto.alerta { color: #fca5a5; }
+#insa-dlg .insa-dlg-botoes { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+#insa-dlg .insa-dlg-status { font-size: 13px; color: #dc2626; margin: 8px 0 0; }
+#insa-dlg .insa-dlg-status:empty { display: none; }
+</style>
+
+    <div class="px-4 md:px-8 py-6 md:py-8 space-y-6">
+
+        <!-- Cabeçalho -->
+        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+            <div class="min-w-0">
+                <p class="insa-eyebrow">Comercial</p>
+                <h2 class="text-2xl md:text-3xl font-headline font-extrabold text-[var(--text-primary)] mt-1">
+                    Inscrição - Automática
+                </h2>
+                <p class="text-sm text-[var(--text-secondary)] mt-1.5 max-w-3xl">
+                    Inscrição dos leads do crm1 na loja VTEX com vínculo no SIAA: fila, motores com contingência,
+                    desligamento automático, conferência no SIAA e inscrição avulsa. Cada ação fica registrada com o seu nome.
+                </p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <span id="insa-pill-automacao" class="insa-pill t-neutro">Automação: …</span>
+                <span id="insa-pill-papel" class="insa-pill t-neutro"></span>
+                <button type="button" id="insa-atualizar" class="btn-secondary insa-btn" data-acao="atualizar">
+                    <span class="material-symbols-outlined">refresh</span>Atualizar
+                </button>
+            </div>
+        </div>
+
+        <!-- Serviço fora do ar -->
+        <div id="insa-fora" class="insa-alert t-erro hidden" role="alert">
+            <strong>O serviço de inscrição automática não está respondendo.</strong>
+            <span id="insa-fora-erro"></span>
+            <span class="block mt-1">As abas voltam sozinhas quando ele responder.</span>
+        </div>
+        <p id="insa-status" class="insa-status" role="status" aria-live="polite"></p>
+
+        <!-- Abas -->
+        <div class="insa-tabs-wrap">
+            <div class="ds-segment" role="tablist" aria-label="Inscrição - Automática">
+                <button type="button" role="tab" id="insa-tab-visao" data-aba="visao" class="ds-segment__btn ds-segment__btn--active flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">dashboard</span>Visão geral
+                </button>
+                <button type="button" role="tab" id="insa-tab-fila" data-aba="fila" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">format_list_numbered</span>Fila
+                </button>
+                <button type="button" role="tab" id="insa-tab-nova" data-aba="nova" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">person_add</span>Nova inscrição
+                </button>
+                <button type="button" role="tab" id="insa-tab-painel" data-aba="painel" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">monitoring</span>Painel de inscrições
+                </button>
+                <button type="button" role="tab" id="insa-tab-cadastros" data-aba="cadastros" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">badge</span>Cadastros
+                </button>
+                <button type="button" role="tab" id="insa-tab-crm" data-aba="crm" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">hub</span>Integração CRM
+                </button>
+                <button type="button" role="tab" id="insa-tab-afiliados" data-aba="afiliados" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">group</span>Afiliados
+                </button>
+                <button type="button" role="tab" id="insa-tab-siaa" data-aba="siaa" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">fact_check</span>Inscrições × SIAA
+                </button>
+                <button type="button" role="tab" id="insa-tab-agente" data-aba="agente" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">build</span>Agente
+                </button>
+                <button type="button" role="tab" id="insa-tab-manutencao" data-aba="manutencao" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">healing</span>Manutenção
+                </button>
+                <button type="button" role="tab" id="insa-tab-config" data-aba="config" data-so-admin class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">tune</span>Configuração
+                </button>
+                <button type="button" role="tab" id="insa-tab-eventos" data-aba="eventos" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px]">notifications</span>Eventos
+                </button>
+                <button type="button" role="tab" id="insa-tab-simulacao" data-aba="simulacao" class="ds-segment__btn ds-segment__btn--inactive flex items-center gap-2 hidden">
+                    <span class="material-symbols-outlined text-[18px]">science</span>Simulação
+                </button>
+            </div>
+        </div>
+
+        <!-- ── Visão geral ── -->
+        <section id="insa-sec-visao" class="space-y-6" role="tabpanel" aria-labelledby="insa-tab-visao">
+            <div id="insa-modo"></div>
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Inscrição automática</h3></div>
+                <div id="insa-disjuntor" role="region" aria-label="Estado da inscrição automática"><p class="insa-muted">Carregando…</p></div>
+                <p id="insa-ov-disj-status" class="insa-status" role="status"></p>
+            </div>
+            <div>
+                <div class="insa-cab"><h3 class="insa-h3">Fila agora</h3><span id="insa-ov-ritmo" class="insa-muted"></span></div>
+                <div id="insa-ov-kpis" class="insa-kpis"></div>
+            </div>
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Motores</h3><span id="insa-ov-ordem" class="insa-muted"></span></div>
+                <div id="insa-ov-motores" class="insa-motores"></div>
+                <p id="insa-ov-status" class="insa-status" role="status"></p>
+            </div>
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab">
+                    <h3 class="insa-h3">Últimas inscrições</h3>
+                    <button type="button" class="btn-secondary insa-btn mini" data-acao="ir-aba" data-aba-destino="fila">Ver a fila completa</button>
+                </div>
+                <div id="insa-ov-jobs" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ── Fila ── -->
+        <section id="insa-sec-fila" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-fila">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab">
+                    <h3 class="insa-h3">Fila de inscrições</h3>
+                    <div id="insa-fl-filtros" class="ds-segment ds-segment--compact" role="group" aria-label="Filtrar a fila"></div>
+                </div>
+                <p id="insa-fl-status" class="insa-status" role="status"></p>
+                <div id="insa-fl-jobs" class="insa-table-wrap mt-2"></div>
+            </div>
+            <div id="insa-ret" class="glass-card p-5 md:p-6 hidden">
+                <div class="insa-cab">
+                    <h3 class="insa-h3">Devolvidos ao crm1</h3>
+                    <div id="insa-ret-acao"></div>
+                </div>
+                <div id="insa-ret-avisos"></div>
+                <p id="insa-ret-status" class="insa-status" role="status"></p>
+                <div id="insa-ret-tabela" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ── Nova inscrição ── -->
+        <section id="insa-sec-nova" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-nova">
+            <div id="insa-nv-modos"></div>
+            <form id="insa-nv-form" class="glass-card p-5 md:p-6 space-y-4" novalidate>
+                <div class="insa-cab"><h3 class="insa-h3">Nova inscrição</h3><span id="insa-nv-ocupado" class="insa-muted"></span></div>
+                <div class="insa-grid">
+                    <label class="insa-field">
+                        <span>Forma de ingresso</span>
+                        <select id="insa-nv-forma" class="input-glass px-3 py-2 text-sm"></select>
+                        <small class="insa-erro" data-erro="forma"></small>
+                    </label>
+                    <label class="insa-field">
+                        <span>Curso</span>
+                        <input id="insa-nv-curso" list="insa-nv-cursos" autocomplete="off" placeholder="Digite para buscar" class="input-glass px-3 py-2 text-sm">
+                        <datalist id="insa-nv-cursos"></datalist>
+                        <small class="insa-erro" data-erro="skuId"></small>
+                    </label>
+                    <label class="insa-field">
+                        <span>Polo</span>
+                        <select id="insa-nv-polo" class="input-glass px-3 py-2 text-sm"></select>
+                        <small class="insa-erro" data-erro="poleId"></small>
+                    </label>
+                </div>
+                <p id="insa-nv-forma-info" class="insa-status t-info"></p>
+                <div id="insa-nv-extras" class="insa-grid hidden"></div>
+                <div class="insa-grid">
+                    <label class="insa-field largo">
+                        <span>Nome completo</span>
+                        <input id="insa-nv-nome" autocomplete="off" class="input-glass px-3 py-2 text-sm">
+                        <small class="insa-erro" data-erro="nome"></small>
+                    </label>
+                    <label class="insa-field">
+                        <span>E-mail</span>
+                        <input id="insa-nv-email" type="email" autocomplete="off" class="input-glass px-3 py-2 text-sm">
+                        <small class="insa-erro" data-erro="email"></small>
+                    </label>
+                    <label class="insa-field">
+                        <span>Telefone (DDD)</span>
+                        <input id="insa-nv-telefone" inputmode="numeric" placeholder="11999999999" class="input-glass px-3 py-2 text-sm">
+                        <small class="insa-erro" data-erro="telefone"></small>
+                    </label>
+                    <label class="insa-field">
+                        <span>CPF</span>
+                        <input id="insa-nv-cpf" inputmode="numeric" placeholder="000.000.000-00" class="input-glass px-3 py-2 text-sm"
+                               title="Para ensaiar sem usar CPF de ninguém, use um CPF de teste com 11 dígitos iguais (ex.: 111.111.111-11). Ele é recusado na inscrição real.">
+                        <small>Ensaio: CPF de teste 111.111.111-11 (não vale na real)</small>
+                        <small class="insa-erro" data-erro="cpf"></small>
+                    </label>
+                    <label class="insa-field">
+                        <span>Nascimento</span>
+                        <input id="insa-nv-nascimento" inputmode="numeric" placeholder="DD/MM/AAAA" class="input-glass px-3 py-2 text-sm">
+                        <small class="insa-erro" data-erro="nascimento"></small>
+                    </label>
+                    <label class="insa-field">
+                        <span>CEP</span>
+                        <input id="insa-nv-cep" inputmode="numeric" placeholder="00000-000" class="input-glass px-3 py-2 text-sm">
+                        <small class="insa-erro" data-erro="cep"></small>
+                    </label>
+                    <div class="insa-field largo">
+                        <span>Cupom de desconto</span>
+                        <div class="insa-row">
+                            <input id="insa-nv-cupom" autocomplete="off" spellcheck="false" maxlength="40" class="input-glass px-3 py-2 text-sm insa-mono flex-1" aria-label="Cupom de desconto">
+                            <button type="button" id="insa-nv-cupom-validar" class="btn-secondary insa-btn" data-acao="nv-cupom-validar">Validar</button>
+                        </div>
+                        <small class="insa-erro" data-erro="cupom"></small>
+                    </div>
+                </div>
+                <p id="insa-nv-cupom-status" class="insa-status" role="status" aria-live="polite"></p>
+                <div class="insa-grid">
+                    <label class="insa-field largo">
+                        <span>Motor</span>
+                        <select id="insa-nv-motor" class="input-glass px-3 py-2 text-sm">
+                            <option value="http">HTTP (padrão, ~2 min)</option>
+                            <option value="auto">Automático: HTTP e, em falha técnica, Playwright</option>
+                            <option value="playwright">Playwright pelas telas (contingência, ~6–10 min)</option>
+                        </select>
+                        <small>O fallback só roda quando o HTTP falha sem criar pedido (evita inscrição dupla).</small>
+                        <small class="insa-erro" data-erro="motor"></small>
+                    </label>
+                </div>
+                <div class="insa-row" role="group" aria-label="Executar">
+                    <button type="submit" data-modo="validar" class="btn-primary insa-btn">
+                        <span class="material-symbols-outlined">check</span>Validar dados
+                    </button>
+                    <button type="submit" data-modo="ensaio" id="insa-nv-btn-ensaio" class="btn-secondary insa-btn">
+                        <span class="material-symbols-outlined">science</span>Ensaio (sem pedido)
+                    </button>
+                    <button type="submit" data-modo="real" id="insa-nv-btn-real" class="btn-danger insa-btn hidden" data-so-admin>
+                        <span class="material-symbols-outlined">play_arrow</span>Inscrever de verdade
+                    </button>
+                </div>
+                <p id="insa-nv-status" class="insa-status" role="status" aria-live="polite"></p>
+            </form>
+
+            <div id="insa-nv-exec" class="glass-card p-5 md:p-6 hidden">
+                <div class="insa-cab"><h3 class="insa-h3">Execução</h3></div>
+                <p id="insa-nv-exec-titulo" class="insa-muted"></p>
+                <ul id="insa-nv-checks" class="insa-checks"></ul>
+                <ol id="insa-nv-etapas" class="insa-etapas"></ol>
+                <div id="insa-nv-resultado"></div>
+                <details id="insa-nv-eventos-box" class="hidden mt-3">
+                    <summary>Eventos do motor</summary>
+                    <ul id="insa-nv-eventos" class="insa-eventos mt-2"></ul>
+                </details>
+            </div>
+
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Execuções recentes</h3><span id="insa-nv-hist-resumo" class="insa-muted"></span></div>
+                <div id="insa-nv-hist" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ── Painel de inscrições ── -->
+        <section id="insa-sec-painel" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-painel">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Painel de inscrições</h3></div>
+                <form id="insa-pn-form" class="insa-grid">
+                    <label class="insa-field"><span>Data inicial</span><input id="insa-pn-de" type="date" class="input-glass px-3 py-2 text-sm"></label>
+                    <label class="insa-field"><span>Data final</span><input id="insa-pn-ate" type="date" class="input-glass px-3 py-2 text-sm"></label>
+                    <label class="insa-field largo"><span>CPF, e-mail ou nome</span><input id="insa-pn-busca" autocomplete="off" placeholder="000.000.000-00, e-mail ou nome" class="input-glass px-3 py-2 text-sm"></label>
+                    <div class="insa-row self-end">
+                        <button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">check</span>Aplicar</button>
+                        <button type="button" id="insa-pn-erros" class="btn-secondary insa-btn" data-acao="pn-erros" aria-pressed="false"><span class="material-symbols-outlined">error</span>Só erros</button>
+                    </div>
+                </form>
+                <p id="insa-pn-periodo" class="insa-muted mt-3"></p>
+                <p id="insa-pn-status" class="insa-status" role="status"></p>
+            </div>
+            <div id="insa-pn-kpis" class="insa-kpis"></div>
+            <div class="insa-grid">
+                <div class="glass-card p-5"><h3 class="insa-h3 mb-3">Erros</h3><ul id="insa-pn-lista-erros" class="insa-barras"></ul></div>
+                <div class="glass-card p-5"><h3 class="insa-h3 mb-3">Forma de ingresso</h3><ul id="insa-pn-formas" class="insa-barras"></ul></div>
+                <div class="glass-card p-5"><h3 class="insa-h3 mb-3">Departamento</h3><ul id="insa-pn-deptos" class="insa-barras"></ul></div>
+            </div>
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Últimos registros</h3></div>
+                <div id="insa-pn-ultimos" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ── Cadastros ── -->
+        <section id="insa-sec-cadastros" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-cadastros">
+            <div class="insa-grid-2">
+                <div class="glass-card p-5 md:p-6">
+                    <div class="insa-cab"><h3 class="insa-h3">Campanha vigente</h3></div>
+                    <p id="insa-cp-origem" class="insa-muted mb-3"></p>
+                    <form id="insa-cp-form" class="space-y-3">
+                        <label class="insa-field">
+                            <span>Cupom da campanha</span>
+                            <input id="insa-cp-cupom" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Ex.: ESQUENTABLACK" class="input-glass px-3 py-2 text-sm insa-mono">
+                        </label>
+                        <label class="insa-check"><input id="insa-cp-obrigatorio" type="checkbox" checked> Obrigatório em toda inscrição</label>
+                        <div class="insa-row">
+                            <button type="button" class="btn-secondary insa-btn" data-acao="cp-validar"><span class="material-symbols-outlined">check</span>Validar na loja</button>
+                            <button type="submit" class="btn-primary insa-btn" data-so-admin><span class="material-symbols-outlined">save</span>Salvar</button>
+                        </div>
+                    </form>
+                    <p id="insa-cp-status" class="insa-status" role="status" aria-live="polite"></p>
+                </div>
+
+                <div class="glass-card p-5 md:p-6">
+                    <div class="insa-cab"><h3 class="insa-h3">Atendente (login de polo)</h3></div>
+                    <p class="insa-desc">Gravado só no servidor do serviço de inscrição. A senha nunca volta para a tela.</p>
+                    <ul id="insa-at-lista" class="insa-lista-at"></ul>
+                    <form id="insa-at-form" autocomplete="off" class="space-y-3" data-so-admin>
+                        <label class="insa-field">
+                            <span>E-mail do atendente</span>
+                            <input id="insa-at-email" type="email" autocomplete="off" spellcheck="false" placeholder="nome.sobrenome50@polo.cruzeirodosul.edu.br" class="input-glass px-3 py-2 text-sm">
+                        </label>
+                        <div class="insa-field">
+                            <span>Senha</span>
+                            <div class="insa-row">
+                                <input id="insa-at-senha" type="password" autocomplete="new-password" placeholder="••••••••" class="input-glass px-3 py-2 text-sm flex-1" aria-label="Senha do atendente">
+                                <button type="button" class="btn-secondary insa-btn" data-acao="at-ver" aria-label="Mostrar senha" aria-pressed="false"><span class="material-symbols-outlined">visibility</span></button>
+                            </div>
+                        </div>
+                        <div class="insa-row">
+                            <button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">save</span>Salvar</button>
+                            <button type="button" class="btn-secondary insa-btn" data-acao="at-testar"><span class="material-symbols-outlined">key</span>Testar login</button>
+                        </div>
+                    </form>
+                    <p id="insa-at-status" class="insa-status" role="status" aria-live="polite"></p>
+                </div>
+            </div>
+
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Polos de inscrição</h3></div>
+                <p class="insa-desc">Polos que entram no <strong>polo mais próximo</strong> (pelo CEP) e nomes que o CRM usa. Desmarque "Aceita" para tirar um polo sem cota: ele sai do cálculo e a inscrição nele é recusada. Vale na hora, sem mexer no código.</p>
+                <div class="insa-row-end mb-3">
+                    <label class="insa-field">
+                        <span>Testar CEP</span>
+                        <input id="insa-pl-cep" inputmode="numeric" placeholder="00000-000" class="input-glass px-3 py-2 text-sm">
+                    </label>
+                    <button type="button" class="btn-secondary insa-btn" data-acao="pl-testar"><span class="material-symbols-outlined">near_me</span>Polo mais próximo</button>
+                </div>
+                <p id="insa-pl-resultado" class="insa-muted mb-3"></p>
+                <div class="insa-table-wrap">
+                    <table class="insa-table">
+                        <thead><tr><th>Código</th><th>Nome</th><th>Nomes no CRM (separe por vírgula)</th><th>Latitude</th><th>Longitude</th><th>Aceita</th><th>Observação</th><th></th></tr></thead>
+                        <tbody id="insa-pl-lista"><tr><td colspan="8" class="vazio">Carregando…</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="insa-row mt-3" data-so-admin>
+                    <select id="insa-pl-novo" class="input-glass px-3 py-2 text-sm w-full sm:w-auto" style="max-width:100%;min-width:0" aria-label="Polo do catálogo para adicionar"></select>
+                    <button type="button" class="btn-secondary insa-btn" data-acao="pl-adicionar">+ Adicionar polo</button>
+                    <button type="button" class="btn-primary insa-btn" data-acao="pl-salvar"><span class="material-symbols-outlined">save</span>Salvar polos</button>
+                </div>
+                <p id="insa-pl-status" class="insa-status" role="status" aria-live="polite"></p>
+                <details class="mt-4">
+                    <summary>Localização do CEP: Google ou VTEX</summary>
+                    <p class="insa-desc mt-2">Com a chave do Google Maps (Geocoding API) a localização do CEP é mais precisa. Sem ela, usa a localização que a VTEX devolve para o CEP. A distância é em linha reta.</p>
+                    <p class="insa-muted">Agora: <span id="insa-pl-google" class="insa-mono">sem chave (usa a VTEX)</span></p>
+                    <form id="insa-pl-google-form" class="insa-row mt-2" autocomplete="off" data-so-admin>
+                        <input id="insa-pl-google-chave" type="password" autocomplete="new-password" spellcheck="false" placeholder="AIza…" class="input-glass px-3 py-2 text-sm flex-1" aria-label="Chave do Google Maps">
+                        <button type="submit" class="btn-secondary insa-btn"><span class="material-symbols-outlined">key</span>Salvar chave</button>
+                    </form>
+                </details>
+            </div>
+        </section>
+
+        <!-- ── Integração CRM ── -->
+        <section id="insa-sec-crm" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-crm">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Integração CRM (processamento automático)</h3></div>
+                <p class="insa-desc">O CRM envia os dados do lead e o serviço inscreve sozinho, em fila, uma por vez (mesma execução da Nova inscrição, com fallback e trava do SIAA). Repetir o mesmo <code>idExterno</code> não inscreve de novo. É a entrada antiga (Kommo/n8n); a automação do crm1 usa a Fila.</p>
+                <div class="insa-grid mb-3">
+                    <div class="insa-field">
+                        <span>Endpoint (no serviço de inscrição)</span>
+                        <code id="insa-crm-url" class="insa-mono break-all">POST /api/crm/inscricoes</code>
+                        <small>Fica no endereço do serviço de inscrição, não no painel.</small>
+                    </div>
+                    <div class="insa-field">
+                        <span>Token (Authorization: Bearer …)</span>
+                        <div class="insa-row">
+                            <code id="insa-crm-token" class="insa-mono break-all">não gerado</code>
+                            <button type="button" id="insa-crm-gerar" class="btn-secondary insa-btn mini" data-acao="crm-gerar" data-so-admin><span class="material-symbols-outlined">key</span>Gerar token</button>
+                        </div>
+                    </div>
+                    <label class="insa-field">
+                        <span>Modo do CRM</span>
+                        <select id="insa-crm-modo" class="input-glass px-3 py-2 text-sm">
+                            <option value="ensaio">Ensaio (para antes do pedido)</option>
+                            <option value="real">Real (cria a inscrição)</option>
+                        </select>
+                    </label>
+                </div>
+                <details class="mb-3">
+                    <summary>Exemplo de envio</summary>
+                    <pre id="insa-crm-exemplo" class="insa-mono mt-2 p-3 rounded-lg overflow-x-auto" style="background:var(--bg-elevated);white-space:pre"></pre>
+                </details>
+                <p id="insa-crm-status" class="insa-status" role="status" aria-live="polite"></p>
+                <div id="insa-crm-fila" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ── Afiliados ── -->
+        <section id="insa-sec-afiliados" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-afiliados">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Indicação de afiliados</h3></div>
+                <p class="insa-desc">Vale para as inscrições <strong>reais</strong> da Nova inscrição e do CRM: o lead sorteado é indicado na BeeViral e a inscrição começa 55 s depois. O ensaio não sorteia. O percentual é o mesmo do painel de produção.</p>
+                <div id="insa-af-sem-chave" class="hidden">
+                    <p class="insa-desc">O percentual fica no banco de inscrições (Supabase), o mesmo que o painel de produção usa. Para o serviço ler e salvar, cole uma vez a chave de acesso desse banco (a <code>SUPABASE_INSCRICOES_KEY</code> do painel de produção). Ela fica só no servidor do serviço e volta mascarada.</p>
+                    <form id="insa-af-chave-form" class="insa-row" autocomplete="off" data-so-admin>
+                        <input id="insa-af-chave" type="password" autocomplete="new-password" spellcheck="false" placeholder="eyJ… ou sb_secret_…" class="input-glass px-3 py-2 text-sm flex-1" aria-label="Chave do Supabase">
+                        <button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">key</span>Salvar chave</button>
+                    </form>
+                </div>
+                <div id="insa-af-painel" class="hidden">
+                    <p class="insa-muted mb-1">0% = desligado · 10% = 1 a cada 10 inscrições, em média.</p>
+                    <p class="text-sm text-[var(--text-primary)] mb-3">Total de indicados: <strong id="insa-af-total">—</strong> · Últimos 7 dias: <strong id="insa-af-periodo">—</strong> <span id="insa-af-periodo-det" class="insa-muted"></span></p>
+                    <form id="insa-af-form" class="insa-row-end mb-2">
+                        <input id="insa-af-slider" type="range" min="0" max="100" step="1" value="0" aria-label="Percentual de indicação" class="flex-1" style="accent-color:var(--primary);min-width:160px">
+                        <label class="insa-field"><span>%</span><input id="insa-af-num" type="number" min="0" max="100" step="1" inputmode="numeric" class="input-glass px-3 py-2 text-sm w-24"></label>
+                        <button type="submit" class="btn-primary insa-btn" data-so-admin><span class="material-symbols-outlined">save</span>Salvar</button>
+                    </form>
+                    <p id="insa-af-info" class="insa-muted"></p>
+                </div>
+                <p id="insa-af-status" class="insa-status" role="status" aria-live="polite"></p>
+            </div>
+        </section>
+
+        <!-- ── Inscrições × SIAA ── -->
+        <section id="insa-sec-siaa" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-siaa">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab">
+                    <h3 class="insa-h3">Inscrições × SIAA</h3>
+                    <div class="insa-row">
+                        <button type="button" class="btn-secondary insa-btn mini" data-acao="rel-csv"><span class="material-symbols-outlined">download</span>Baixar planilha (CSV)</button>
+                        <button type="button" id="insa-rel-conferir" class="btn-primary insa-btn mini" data-acao="rel-conferir" data-so-admin disabled><span class="material-symbols-outlined">fact_check</span><span data-rotulo>Conferir no SIAA agora</span></button>
+                    </div>
+                </div>
+                <p id="insa-rel-status" class="insa-status" role="status" aria-live="polite"></p>
+                <p id="insa-rel-conf" class="insa-status" role="status" aria-live="polite"></p>
+                <div class="insa-bloco">
+                    <div class="insa-cab">
+                        <h3 class="insa-h3">Acesso ao SIAA</h3>
+                        <button type="button" id="insa-ss-abrir" class="btn-secondary insa-btn mini" data-acao="ss-abrir" aria-expanded="false" data-so-admin>Colar sessão</button>
+                    </div>
+                    <p id="insa-ss-texto" class="insa-muted"></p>
+                    <form id="insa-ss-form" class="space-y-2 mt-2 hidden">
+                        <label class="insa-field">
+                            <span>cURL do svrel28.jsf</span>
+                            <textarea id="insa-ss-curl" spellcheck="false" class="input-glass px-3 py-2" placeholder="curl 'https://siaa.cruzeirodosul.edu.br/siaa_vestibular/secure/ves/svrel28/svrel28.jsf' ..."></textarea>
+                            <small>Contém o seu login no SIAA: fica só no servidor do serviço de inscrição, fora do repositório, e expira sozinho.</small>
+                        </label>
+                        <button type="submit" id="insa-ss-salvar" class="btn-primary insa-btn mini" disabled>Salvar sessão</button>
+                    </form>
+                    <p id="insa-ss-status" class="insa-status" role="status"></p>
+                </div>
+            </div>
+            <div id="insa-rel-kpis" class="insa-kpis"></div>
+            <div class="glass-card p-5 md:p-6">
+                <form id="insa-rel-filtros" class="insa-grid mb-4" aria-label="Filtros do relatório">
+                    <label class="insa-field"><span>De</span><input type="date" data-f="de" class="input-glass px-3 py-2 text-sm"></label>
+                    <label class="insa-field"><span>Até</span><input type="date" data-f="ate" class="input-glass px-3 py-2 text-sm"></label>
+                    <label class="insa-field"><span>Polo</span><input type="text" data-f="polo" placeholder="parte do nome" autocomplete="off" class="input-glass px-3 py-2 text-sm"></label>
+                    <label class="insa-field"><span>Situação</span><select data-f="status" id="insa-rel-f-status" class="input-glass px-3 py-2 text-sm"></select></label>
+                    <label class="insa-field"><span>No SIAA</span><select data-f="conferencia" id="insa-rel-f-conf" class="input-glass px-3 py-2 text-sm"></select></label>
+                </form>
+                <div id="insa-rel-tabela" class="insa-table-wrap"></div>
+            </div>
+        </section>
+
+        <!-- ── Agente ── -->
+        <section id="insa-sec-agente" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-agente">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab">
+                    <h3 class="insa-h3">Agente de manutenção</h3>
+                    <div class="insa-row" data-so-admin>
+                        <button type="button" id="insa-ag-verificar" class="btn-secondary insa-btn mini" data-acao="ag-verificar">Verificar agora</button>
+                        <button type="button" id="insa-ag-corrigir" class="btn-primary insa-btn mini" data-acao="ag-corrigir">Verificar e corrigir</button>
+                    </div>
+                </div>
+                <p id="insa-ag-explica" class="insa-desc"></p>
+                <p id="insa-ag-status" class="insa-status" role="status"></p>
+                <div id="insa-ag-corpo"></div>
+            </div>
+        </section>
+
+        <!-- ── Manutenção ── -->
+        <section id="insa-sec-manutencao" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-manutencao">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab">
+                    <h3 class="insa-h3">Manutenção</h3>
+                    <div class="ds-segment ds-segment--compact" role="tablist" aria-label="Manutenção">
+                        <button type="button" role="tab" id="insa-mt-sub-problemas" data-acao="mt-sub" data-sub="problemas" class="ds-segment__btn ds-segment__btn--active">Problemas</button>
+                        <button type="button" role="tab" id="insa-mt-sub-diagnostico" data-acao="mt-sub" data-sub="diagnostico" class="ds-segment__btn ds-segment__btn--inactive">Diagnóstico IA</button>
+                        <button type="button" role="tab" id="insa-mt-sub-ia" data-acao="mt-sub" data-sub="ia" class="ds-segment__btn ds-segment__btn--inactive">Configuração da IA</button>
+                    </div>
+                </div>
+
+                <div id="insa-mt-p-problemas">
+                    <p class="insa-desc">Execuções da Nova inscrição (desde o último reinício do serviço) que terminaram com problema. A IA investiga e propõe a correção; nada roda sem alguém aplicar.</p>
+                    <div id="insa-mt-problemas" class="insa-table-wrap mb-4"></div>
+                    <form id="insa-mt-email-form" class="insa-grid">
+                        <label class="insa-field"><span>Diagnosticar por e-mail (inscrição feita fora da tela)</span><input id="insa-mt-email" type="email" autocomplete="off" placeholder="candidato@exemplo.com" class="input-glass px-3 py-2 text-sm"></label>
+                        <label class="insa-field largo"><span>Observação (opcional)</span><input id="insa-mt-obs" autocomplete="off" maxlength="1000" placeholder="Ex.: não aparece no SIAA" class="input-glass px-3 py-2 text-sm"></label>
+                        <div class="insa-row self-end"><button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">auto_awesome</span>Diagnosticar</button></div>
+                    </form>
+                    <p id="insa-mt-problemas-status" class="insa-status" role="status" aria-live="polite"></p>
+                    <div class="insa-bloco mt-4">
+                        <h3 class="insa-h3 mb-2">Diagnósticos recentes</h3>
+                        <div id="insa-mt-diags" class="insa-table-wrap"></div>
+                    </div>
+                </div>
+
+                <div id="insa-mt-p-diagnostico" class="hidden">
+                    <p id="insa-mt-diag-titulo" class="insa-muted">Escolha um problema em "Problemas" ou diagnostique por e-mail.</p>
+                    <ul id="insa-mt-diag-eventos" class="insa-eventos mt-2"></ul>
+                    <div id="insa-mt-diag-resultado" class="hidden mt-3"></div>
+                    <p id="insa-mt-diag-status" class="insa-status" role="status" aria-live="polite"></p>
+                </div>
+
+                <div id="insa-mt-p-ia" class="hidden">
+                    <p class="insa-desc">O diagnóstico usa o Claude (API da Anthropic). A chave fica só no servidor do serviço de inscrição e aparece mascarada.</p>
+                    <p id="insa-mt-ia-estado" class="insa-status t-info"></p>
+                    <form id="insa-mt-ia-form" autocomplete="off" class="insa-row-end mt-3" data-so-admin>
+                        <div class="insa-field flex-1" style="min-width:200px">
+                            <span>Chave da API da Anthropic</span>
+                            <div class="insa-row">
+                                <input id="insa-mt-ia-chave" type="password" autocomplete="new-password" spellcheck="false" placeholder="sk-ant-…" class="input-glass px-3 py-2 text-sm flex-1" aria-label="Chave da API da Anthropic">
+                                <button type="button" class="btn-secondary insa-btn" data-acao="mt-ia-ver" aria-label="Mostrar chave" aria-pressed="false"><span class="material-symbols-outlined">visibility</span></button>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-primary insa-btn"><span class="material-symbols-outlined">save</span>Salvar</button>
+                    </form>
+                    <p id="insa-mt-ia-status" class="insa-status" role="status" aria-live="polite"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Configuração (admin) ── -->
+        <section id="insa-sec-config" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-config" data-so-admin>
+            <div class="glass-card p-5 md:p-6">
+                <p class="insa-desc">As mudanças valem para as próximas inscrições; as que estão em andamento terminam como começaram.</p>
+                <p id="insa-cf-status" class="insa-status" role="status" aria-live="polite"></p>
+                <div id="insa-cf-form"><p class="insa-muted">Carregando…</p></div>
+                <div id="insa-cf-barra" class="insa-salvar hidden" role="region" aria-label="Alterações não salvas">
+                    <span id="insa-cf-barra-txt" class="text-sm font-semibold"></span>
+                    <div class="insa-row">
+                        <button type="button" class="btn-secondary insa-btn mini" data-acao="cf-descartar">Descartar</button>
+                        <button type="button" id="insa-cf-salvar" class="btn-primary insa-btn mini" data-acao="cf-salvar">Salvar alterações</button>
+                    </div>
+                </div>
+            </div>
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Últimas alterações</h3></div>
+                <ul id="insa-cf-hist" class="insa-eventos"></ul>
+            </div>
+        </section>
+
+        <!-- ── Eventos ── -->
+        <section id="insa-sec-eventos" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-eventos">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Eventos e alertas</h3></div>
+                <form id="insa-ev-filtros" class="insa-grid mb-3">
+                    <label class="insa-field"><span>Tipo</span><select id="insa-ev-tipo" class="input-glass px-3 py-2 text-sm"></select></label>
+                    <label class="insa-field"><span>Gravidade</span>
+                        <select id="insa-ev-nivel" class="input-glass px-3 py-2 text-sm">
+                            <option value="">Todas</option><option value="erro">Erros</option><option value="aviso">Atenção</option><option value="info">Informativos</option>
+                        </select>
+                    </label>
+                </form>
+                <p id="insa-ev-status" class="insa-status" role="status"></p>
+                <ul id="insa-ev-lista" class="insa-eventos"></ul>
+            </div>
+        </section>
+
+        <!-- ── Simulação (só com motores falsos) ── -->
+        <section id="insa-sec-simulacao" class="space-y-6 hidden" role="tabpanel" aria-labelledby="insa-tab-simulacao">
+            <div class="glass-card p-5 md:p-6">
+                <div class="insa-cab"><h3 class="insa-h3">Simulação</h3></div>
+                <p class="insa-desc">Motores falsos: nada chega à VTEX nem ao SIAA. Use para ver a fila e o desligamento automático funcionando.</p>
+                <p id="insa-sim-status" class="insa-status" role="status"></p>
+                <div id="insa-sim-motores" class="insa-grid mb-4"></div>
+                <div class="insa-bloco" data-so-admin>
+                    <h3 class="insa-h3 mb-2">Enviar inscrições de teste</h3>
+                    <div class="insa-row">
+                        <input id="insa-sim-qtd" type="number" min="1" max="20" value="3" class="input-glass px-3 py-2 text-sm w-24" aria-label="Quantidade de inscrições de teste">
+                        <button type="button" id="insa-sim-enviar" class="btn-primary insa-btn" data-acao="sim-enviar">Enviar para a fila</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <dialog id="insa-dlg" aria-labelledby="insa-dlg-titulo">
+        <h4 id="insa-dlg-titulo"></h4>
+        <p id="insa-dlg-texto" class="insa-dlg-texto"></p>
+        <label id="insa-dlg-campo" style="display:none;flex-direction:column;gap:4px">
+            <span id="insa-dlg-rotulo" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-secondary)"></span>
+            <input id="insa-dlg-motivo" autocomplete="off" maxlength="200" class="input-glass px-3 py-2 text-sm">
+        </label>
+        <p id="insa-dlg-status" class="insa-dlg-status" role="status" aria-live="polite"></p>
+        <div class="insa-dlg-botoes">
+            <button type="button" id="insa-dlg-voltar" class="btn-secondary insa-btn">Voltar</button>
+            <button type="button" id="insa-dlg-ok" class="btn-primary insa-btn">Confirmar</button>
+        </div>
+    </dialog>
+</div>

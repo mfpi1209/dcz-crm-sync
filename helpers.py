@@ -78,6 +78,10 @@ ALL_PAGES = [
     "academico_interacoes",
     "subir_blog",
     "motor_ativacoes",
+    # Inscrição - Automática: operar (master) e administrar (sub). Quem tem só a
+    # sub vê a página (app._nav_load_user_data promove sub → master).
+    "inscricao_automatica",
+    "inscricao_automatica_admin",
     # Sub-permissoes do Disparador WhatsApp (uma por aba do iframe do
     # tool_whatsapp_alunos). Quem tem 'disparador_whatsapp' mas nenhuma
     # sub abaixo => ve TUDO (compat). Quem tem 1+ sub => ve so as marcadas.

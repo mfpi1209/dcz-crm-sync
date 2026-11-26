@@ -48,6 +48,7 @@
             {% include 'partials/_config.html' %}
             {% include 'partials/_schedule.html' %}
             {% include 'partials/_inscricao.html' %}
+            {% include 'partials/_inscricao_automatica.html' %}
             {% include 'partials/_ferramentas.html' %}
             {% include 'partials/_cadastro_leads.html' %}
             {% include 'partials/_leads_inscricao.html' %}
@@ -379,6 +380,7 @@
 <script defer src="{{ url_for('static', filename='js/dist_comercial.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/feedback.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/inscricao.js') }}?v={{_v}}"></script>
+<script defer src="{{ url_for('static', filename='js/inscricao_automatica.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/tracker_tarefas.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/conexao_siaa.js') }}?v={{_v}}"></script>
 <script defer src="{{ url_for('static', filename='js/ferramentas.js') }}?v={{_v}}"></script>
