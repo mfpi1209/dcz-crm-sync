@@ -320,7 +320,9 @@ APP_PASS_FALLBACK = os.getenv("APP_PASS", "")
 
 
 def _hash_pw(password):
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    """Hash novo (scrypt com sal). Ver seguranca.py."""
+    from seguranca import gerar_hash
+    return gerar_hash(password)
 
 
 # ---------------------------------------------------------------------------

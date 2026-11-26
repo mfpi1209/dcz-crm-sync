@@ -21,6 +21,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from db import get_conn, get_me_conn
 from helpers import BRT, to_brt, BASE_DIR, SYNC_SCRIPT, LOG_DIR
+from permissoes import exige_pagina, so_admin
 
 config_bp = Blueprint("config_bp", __name__)
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ def api_turmas_list():
 
 
 @config_bp.route("/api/turmas", methods=["POST"])
+@exige_pagina("config")
 def api_turmas_create():
     body = request.json or {}
     required = ("nivel", "nome", "dt_inicio", "dt_fim", "ano")
@@ -138,6 +140,7 @@ def api_turmas_create():
 
 
 @config_bp.route("/api/turmas/<int:tid>", methods=["PUT"])
+@exige_pagina("config")
 def api_turmas_update(tid):
     body = request.json or {}
     conn = get_conn()
@@ -160,6 +163,7 @@ def api_turmas_update(tid):
 
 
 @config_bp.route("/api/turmas/<int:tid>", methods=["DELETE"])
+@exige_pagina("config")
 def api_turmas_delete(tid):
     conn = get_conn()
     try:
@@ -175,6 +179,7 @@ def api_turmas_delete(tid):
 
 
 @config_bp.route("/api/turmas/seed", methods=["POST"])
+@exige_pagina("config")
 def api_turmas_seed():
     body = request.json or {}
     ano = int(body.get("ano", datetime.now().year))
@@ -232,6 +237,7 @@ def api_ciclos_list():
 
 
 @config_bp.route("/api/ciclos", methods=["POST"])
+@exige_pagina("config")
 def api_ciclos_create():
     body = request.json or {}
     required = ("nivel", "nome", "dt_inicio", "dt_fim")
@@ -258,6 +264,7 @@ def api_ciclos_create():
 
 
 @config_bp.route("/api/ciclos/<int:cid>", methods=["PUT"])
+@exige_pagina("config")
 def api_ciclos_update(cid):
     body = request.json or {}
     conn = get_conn()
@@ -279,6 +286,7 @@ def api_ciclos_update(cid):
 
 
 @config_bp.route("/api/ciclos/<int:cid>", methods=["DELETE"])
+@exige_pagina("config")
 def api_ciclos_delete(cid):
     conn = get_conn()
     try:
@@ -294,6 +302,7 @@ def api_ciclos_delete(cid):
 
 
 @config_bp.route("/api/ciclos/seed", methods=["POST"])
+@exige_pagina("config")
 def api_ciclos_seed():
     """Gera ciclos padrão: Graduação semestral, Pós-Graduação semestral."""
     body = request.json or {}
@@ -342,6 +351,7 @@ def api_distribuicao_get():
 
 
 @config_bp.route("/api/distribuicao", methods=["POST"])
+@exige_pagina("distribuicao")
 def api_distribuicao_save():
     try:
         data = request.json
@@ -387,6 +397,7 @@ def api_schedules_list():
 
 
 @config_bp.route("/api/schedules", methods=["POST"])
+@exige_pagina("schedule", "config")
 def api_schedules_save():
     data = request.json
     if not data:
@@ -427,6 +438,7 @@ def api_schedules_save():
 
 
 @config_bp.route("/api/schedules/<schedule_id>", methods=["DELETE"])
+@exige_pagina("schedule", "config")
 def api_schedules_delete(schedule_id):
     conn = get_conn()
     try:
@@ -447,6 +459,7 @@ def api_schedules_delete(schedule_id):
 
 
 @config_bp.route("/api/schedules/<schedule_id>/toggle", methods=["POST"])
+@exige_pagina("schedule", "config")
 def api_schedules_toggle(schedule_id):
     conn = get_conn()
     try:
@@ -474,6 +487,7 @@ def api_schedules_toggle(schedule_id):
 # ---------------------------------------------------------------------------
 
 @config_bp.route("/api/debug")
+@so_admin
 def api_debug():
     import app as _app
     return jsonify({
@@ -777,6 +791,7 @@ def api_me_consultores():
 
 
 @config_bp.route("/api/macro-email/consultores", methods=["POST"])
+@exige_pagina("macro_email")
 def api_me_consultores_save():
     """Salva flags e email_cruzeiro direto no banco."""
     items = (request.json or {}).get("items", [])

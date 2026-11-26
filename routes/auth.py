@@ -6,6 +6,7 @@ import psycopg2.extras
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from db import get_conn, DB_DSN
 from helpers import ALL_PAGES, APP_USER_FALLBACK, APP_PASS_FALLBACK, to_brt
+from seguranca import conferir_senha, gerar_hash
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,8 @@ auth_bp = Blueprint("auth_bp", __name__)
 
 
 def _hash_pw(password):
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    """Hash novo (scrypt com sal). O SHA-256 antigo só é lido, em `conferir_senha`."""
+    return gerar_hash(password)
 
 
 def _db_auth(username, password):
@@ -46,8 +48,17 @@ def _db_auth(username, password):
                 (login, login),
             )
             row = cur.fetchone()
+            ok, regravar = conferir_senha(password, row["pw_hash"]) if row else (False, False)
+            if ok and regravar:
+                # Primeiro login depois da troca: o SHA-256 sem sal vira scrypt, sem o usuário perceber.
+                try:
+                    cur.execute("UPDATE app_users SET pw_hash = %s WHERE id = %s", (gerar_hash(password), row["id"]))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    logger.warning("Não consegui atualizar o hash da senha do usuário %s", row["id"])
         conn.close()
-        if row and row["pw_hash"] == _hash_pw(password):
+        if ok:
             return dict(row)
     except Exception:
         pass
@@ -458,6 +469,7 @@ def api_users_import_kommo():
         cur.execute("SELECT username FROM app_users")
         existing_usernames = {r[0] for r in cur.fetchall()}
 
+        hash_padrao = _hash_pw(DEFAULT_PW)  # uma vez: o scrypt leva ~0,5 s
         for ku in kommo_users:
             kid = ku["id"]
             email = ku["email"].strip().lower() if ku["email"] else ""
@@ -485,7 +497,7 @@ def api_users_import_kommo():
             try:
                 cur.execute(
                     "INSERT INTO app_users (username, pw_hash, role, kommo_user_id) VALUES (%s, %s, %s, %s) RETURNING id",
-                    (username, _hash_pw(DEFAULT_PW), "viewer", kid),
+                    (username, hash_padrao, "viewer", kid),
                 )
                 uid = cur.fetchone()[0]
                 for pg in DEFAULT_PAGES:
@@ -608,6 +620,7 @@ def api_users_import_datacrazy():
 
         trace.append(f"DB: {len(all_db)} users, {len(existing_dc)} com dc_id, {len(existing_usernames)} usernames")
 
+        hash_padrao = _hash_pw(DEFAULT_PW)  # uma vez: o scrypt leva ~0,5 s
         for raw in all_users:
             parsed = _dc_user(raw)
             uid_dc = parsed["dc_id"]
@@ -667,7 +680,7 @@ def api_users_import_datacrazy():
             try:
                 cur.execute(
                     "INSERT INTO app_users (username, pw_hash, role, datacrazy_user_id) VALUES (%s, %s, %s, %s) RETURNING id",
-                    (username, _hash_pw(DEFAULT_PW), "viewer", uid_dc),
+                    (username, hash_padrao, "viewer", uid_dc),
                 )
                 new_id = cur.fetchone()[0]
                 for pg in DEFAULT_PAGES:
