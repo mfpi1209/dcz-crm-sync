@@ -466,9 +466,11 @@ except Exception as _e:
 
 # ── APScheduler ───────────────────────────────────────────────────────────
 
-from apscheduler.schedulers.background import BackgroundScheduler
+# Fase 3 (27/11): o papel do processo (AGENDADOR=tudo|site|worker) decide quais jobs
+# rodam aqui, e todo job ganha a trava no Postgres (agendador.py, trava_jobs.py).
+from agendador import Agendador
 
-scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
+scheduler = Agendador(timezone="America/Sao_Paulo")
 init_scheduler(scheduler)
 scheduler.start()
 _load_schedules_from_db()
@@ -493,7 +495,9 @@ register_conversao_backfill_job(scheduler)
 # Incidentes SIAA -> Avisos (so age com SIAA_AVISOS_INCIDENTES=1; ver siaa_avisos.py)
 from siaa_avisos import register_siaa_avisos_job
 register_siaa_avisos_job(scheduler)
-warm_academic_sumidos_cache()
+if scheduler.papel in ("tudo", "site"):
+    # Cache em memória das rotas do dashboard: só faz sentido no processo do site.
+    warm_academic_sumidos_cache()
 
 # ── Entrypoint ────────────────────────────────────────────────────────────
 

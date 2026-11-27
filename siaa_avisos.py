@@ -312,6 +312,7 @@ def executar_job() -> None:
     _ULTIMO.update(em=agora, erro=erro, resultado=None)
     if dados is None:
         logger.warning("siaa_avisos: sem dados de alertas (%s); nada alterado", erro)
+        _gravar_status()
         return
     from db import get_conn
     conn = get_conn()
@@ -325,6 +326,22 @@ def executar_job() -> None:
         logger.error("siaa_avisos: falha ao sincronizar (%s)", type(exc).__name__)
     finally:
         conn.close()
+        _gravar_status()
+
+
+def _gravar_status() -> None:
+    # Fase 3 (27/11): o job roda no worker; a Conexão SIAA (site) lê daqui.
+    from trava_jobs import gravar_status
+    gravar_status("siaa_avisos_incidentes", _ULTIMO.get("em"), _ULTIMO.get("erro"))
+
+
+def ultimo_status() -> dict:
+    """Última sincronização para a tela: do banco (worker) ou da memória (papel tudo)."""
+    from trava_jobs import ler_status
+    st = ler_status("siaa_avisos_incidentes")
+    if st:
+        return st
+    return {"em": _ULTIMO.get("em"), "erro": _ULTIMO.get("erro")}
 
 
 def register_siaa_avisos_job(scheduler) -> None:

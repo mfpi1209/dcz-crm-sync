@@ -81,6 +81,16 @@ def _executar(refazer: bool) -> bool:
                 cur.execute(f"CREATE INDEX IF NOT EXISTS {MV}_rgm_idx ON {MV} (rgm)")
                 cur.execute(f"ANALYZE {MV}")
                 acao = "criada"
+            if acao != "existente, em uso":
+                # Fase 3: hora do refresh na própria cópia, para o site (outro processo)
+                # saber a idade dela sem depender da memória do worker.
+                # Savepoint: se o COMMENT falhar (ex.: permissão), o refresh continua valendo.
+                cur.execute("SAVEPOINT hora_refresh")
+                try:
+                    cur.execute(f"COMMENT ON MATERIALIZED VIEW {MV} IS %s", (f"refeita_em={time.time():.0f}",))
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT hora_refresh")
+                    logger.warning("%s: não gravei a hora do refresh no comentário", MV)
             conn.commit()
         finally:
             conn.close()
@@ -106,6 +116,58 @@ def refrescar() -> bool:
     return _executar(refazer=True)
 
 
+def confirmar_copia() -> bool:
+    """Job do site (Fase 3): a cópia existe? Então pode usar; senão, cria.
+
+    Quem refaz a cópia é o worker. Aqui só se renova a confiança do processo do
+    site nela, para o `pronta()` não vencer por idade no modo periódico.
+    """
+    global _ultimo_ok
+    try:
+        from routes.comercial_rgm import _pg_kommo
+
+        conn = _pg_kommo()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT m.ispopulated, obj_description(c.oid, 'pg_class')
+                     FROM pg_matviews m
+                     JOIN pg_class c ON c.relname = m.matviewname
+                     JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = m.schemaname
+                    WHERE m.schemaname = 'public' AND m.matviewname = %s""",
+                (MV,),
+            )
+            row = cur.fetchone()
+            conn.rollback()
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception("%s: não consegui conferir a cópia", MV)
+        return False
+    if not (row and row[0]):
+        return garantir()
+    refeita = _hora_do_comentario(row[1])
+    if refeita is not None:
+        novo = refeita                  # idade real: o pronta() vence se o worker parar de refazer
+    elif REFRESH_MIN <= 0:
+        novo = time.time()              # sem refresh periódico, existir basta
+    else:
+        novo = _ultimo_ok               # cópia antiga sem hora: espera o próximo refresh marcar
+    if novo is not None and _ultimo_ok is None:
+        logger.info("%s: cópia encontrada, consultas passam a usá-la", MV)
+    _ultimo_ok = novo
+    return pronta()
+
+
+def _hora_do_comentario(texto) -> float | None:
+    if not texto or not str(texto).startswith("refeita_em="):
+        return None
+    try:
+        return float(str(texto).split("=", 1)[1])
+    except ValueError:
+        return None
+
+
 def agendar_refresh() -> None:
     """Refaz a cópia em segundo plano (ex.: logo depois de um sync do Kommo)."""
     threading.Thread(target=refrescar, name="mv-leads-rgm", daemon=True).start()
@@ -123,6 +185,19 @@ def register_job(sched) -> None:
         max_instances=1,
         coalesce=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=5),
+    )
+    # Fase 3 (27/11): o `_ultimo_ok` vale por processo. Com o job acima no worker,
+    # o site precisa conferir sozinho que a cópia existe para trocar a view por ela
+    # (sem isso, as ~15 consultas que usam `sql()` ficariam na view lenta).
+    # Com a cópia pronta, é uma consulta em `pg_matviews` a cada 2 min.
+    sched.add_job(
+        confirmar_copia,
+        IntervalTrigger(minutes=2),
+        id="mv_leads_rgm_site",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10),
     )
     if periodico:
         logger.info("%s: refresh a cada %s min", MV, REFRESH_MIN)

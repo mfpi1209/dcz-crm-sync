@@ -751,7 +751,7 @@ def api_conexao_incidentes():
     except Exception as exc:
         logger.warning("conexao_siaa: incidentes sem banco (%s)", type(exc).__name__)
         corpo["avisos"], corpo["destinatarios_ausentes"], corpo["destinatarios_encontrados"] = None, None, None
-    ult = siaa_avisos._ULTIMO
+    ult = siaa_avisos.ultimo_status()   # Fase 3: o job roda no worker; lê do banco
     corpo["ultima_sincronizacao"] = _iso_ou_none(ult.get("em"))
     corpo["erro_sincronizacao"] = ult.get("erro")
     return jsonify(corpo)
