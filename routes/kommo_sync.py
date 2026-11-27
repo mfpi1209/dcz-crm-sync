@@ -17,6 +17,7 @@ from pathlib import Path
 
 import requests as _requests
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify
 
@@ -50,7 +51,7 @@ _tasks = {}
 
 
 def _pg():
-    return psycopg2.connect(**PG_KOMMO)
+    return conectar(**PG_KOMMO)
 
 
 # ── Status da sincronização ──────────────────────────────────────────────

@@ -25,6 +25,7 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session, g, has_request_context
 
@@ -273,7 +274,7 @@ def _kommo_resolve_lead_id_by_rgm(rgm_clean: str) -> tuple[list[int], str | None
 
 
 def _pg():
-    return psycopg2.connect(**DB_DSN)
+    return conectar(**DB_DSN)
 
 
 # =============================================================================
@@ -794,7 +795,7 @@ def comercial_periodo_vendas_resumo(dt_ini=None, dt_fim=None, polo=None, nivel=N
 
 
 def _pg_kommo():
-    return psycopg2.connect(**KOMMO_DB_DSN)
+    return conectar(**KOMMO_DB_DSN)
 
 
 # â”€â”€ Schema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

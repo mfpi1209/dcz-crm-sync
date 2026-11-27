@@ -4,6 +4,26 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Modernização, Fase 2: reaproveitamento de conexões, versões fixas e tabela de Usuários
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** terminar a Fase 2 com o pool de conexões e as versões fixas, e corrigir a coluna de ações da tabela de Usuários.
+- **Pool de conexões (`db_pool.py`):**
+  - **Antes:** cada `get_conn()` abria uma conexão nova (TCP + autenticação) e o `conn.close()` a derrubava.
+  - **Agora:** `conectar(**dsn)` devolve um proxy da conexão. O `close()` devolve a conexão a uma pilha por DSN e o próximo `conectar()` a reaproveita. Nenhuma das ~450 chamadas a `conn.close()` mudou.
+  - **Sem limite de conexões abertas:** com a pilha vazia, abre uma nova, como antes. Só as ociosas têm teto (`DB_POOL_MAX_OCIOSAS`, padrão 8 por DSN). Não há fila nem `PoolError` dentro de request.
+  - **Ao devolver:** `rollback()`, `reset()` (RESET ALL) e sessão de volta ao padrão (`autocommit` False, sem readonly). Conexão fechada ou com erro no reset é descartada.
+  - **Ao pegar:** ociosa há mais de `DB_POOL_PING_S` (30 s) recebe `SELECT 1`. Com mais de `DB_POOL_VIDA_S` (30 min) de vida, é trocada. Conexão de outro processo (fork) nunca é usada.
+  - **Esquecida sem `close()`:** o proxy fecha a conexão de vez quando o GC o recolhe, como antes.
+  - **Onde entrou:** `db.get_conn`, `get_disparos_conn`, `get_me_conn`, `get_google_ads_conn` e os `_pg`/`_pg_kommo`/`_get_conn` de `auth`, `avisos`, `page_views`, `comercial_rgm`, `minha_performance`, `repasse`, `premiacoes_internas`, `bwipo_sync`, `kommo_sync`, `supervisor_dashboard`, `disparador_whatsapp` e `services/bwipo_owner`.
+  - **Fora de propósito:** scripts, `match_merge_lib` (tabelas temporárias, jobs longos), `kommo_merge`, `materias_alunos`, `conversao_backfill`.
+  - **Desligar sem deploy:** `DB_POOL=0` no EasyPanel faz `conectar()` virar `psycopg2.connect()` puro.
+  - **Medir:** `/api/debug` (só admin) mostra `db_pool` (abertas, reusadas, descartadas, ociosas, média em ms para abrir). O log traz o mesmo resumo a cada 10 min (`DB_POOL_LOG_S`).
+- **CI:** novo job `testes-pg` com um Postgres descartável (service container `postgres:17`, senha que só vale dentro do job). Ele roda `tests/test_db_pool.py` contra um banco de verdade: transação aberta, SET de sessão, autocommit/readonly, transação abortada e sessão morta no servidor. O `build-and-deploy` passa a depender de `[testes, testes-pg]`. O job `testes` continua sem Postgres e sem segredo.
+- **Versões fixas (`requirements.txt`):** `==` nas dependências diretas e na pilha do Flask (o Werkzeug faz o hash das senhas). São as versões que estavam instaladas em 25/11. Atualizar = trocar o número num PR; o CI testa antes do deploy.
+- **Tabela de Usuários:** a coluna de ações tinha 8% da largura e não cabiam os três botões (Entrar como, Editar, Excluir). Os botões vazavam sobre "Criado em" e a lixeira ficava cortada. Agora a coluna tem 120 px fixos e a do usuário fica com o resto.
+- **Não muda:** as consultas, as regras, as permissões, o login e o número de workers do Gunicorn (isso é a Fase 3).
+- **Testes:** `tests/test_db_pool.py` (17 com conexões falsas, sempre; 5 com Postgres, só com `POOL_TEST_DSN`) e `tests/test_ci_workflow.py` (job novo).
+
 ### 2026-11-26 — Performance de Campanhas: Meta e Sem Campanha passam a vir do Bwipo (01/10/2026 em diante)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** a tela Meta Ads · Performance mostrava "Status: ERROR" e zero. O Raphael pediu para ler Meta e Sem Campanha do Bwipo, com backfill desde 01/10.

@@ -2,6 +2,7 @@ import os
 import hashlib
 import logging
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session
 from db import get_conn, DB_DSN
@@ -69,7 +70,7 @@ def _db_auth(username, password):
 def _get_user_permissions(user_id):
     """Returns list of page slugs the user can access."""
     try:
-        conn = psycopg2.connect(**DB_DSN)
+        conn = conectar(**DB_DSN)
         with conn.cursor() as cur:
             cur.execute("SELECT page FROM user_permissions WHERE user_id = %s", (user_id,))
             pages = [r[0] for r in cur.fetchall()]

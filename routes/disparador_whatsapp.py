@@ -17,6 +17,7 @@ from pathlib import Path
 
 import requests as _requests
 import psycopg2
+from db_pool import conectar
 from dotenv import load_dotenv
 from flask import Blueprint, jsonify, request, session
 
@@ -53,7 +54,7 @@ def _user_has_permission():
     if uid is None or uid == 0:
         return False, 403, {"error": "Usuário sem permissão para esta página"}
     try:
-        conn = psycopg2.connect(**DB_DSN)
+        conn = conectar(**DB_DSN)
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT 1 FROM user_permissions WHERE user_id = %s AND page = %s LIMIT 1",
@@ -166,7 +167,7 @@ def _nav_load_user_data_from_session():
     uid = session.get("user_id")
     if uid:
         try:
-            conn = psycopg2.connect(**DB_DSN)
+            conn = conectar(**DB_DSN)
             with conn.cursor() as cur:
                 cur.execute("SELECT categoria FROM app_users WHERE id = %s", (uid,))
                 r = cur.fetchone()

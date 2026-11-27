@@ -4,6 +4,7 @@ import logging
 from datetime import date
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session, Response
 
@@ -208,11 +209,11 @@ def _append_filtro_tipo(wheres, params, tipo):
 
 
 def _pg():
-    return psycopg2.connect(**DB_DSN)
+    return conectar(**DB_DSN)
 
 
 def _pg_kommo():
-    return psycopg2.connect(**KOMMO_DB_DSN)
+    return conectar(**KOMMO_DB_DSN)
 
 
 def _normalize_rgm(val):

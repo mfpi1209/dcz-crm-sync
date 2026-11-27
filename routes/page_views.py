@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session
 
@@ -21,7 +22,7 @@ page_views_bp = Blueprint("page_views_bp", __name__)
 
 
 def _conn():
-    return psycopg2.connect(**DB_DSN)
+    return conectar(**DB_DSN)
 
 
 def _resolve_period(start: str | None, end: str | None) -> tuple[str, str]:

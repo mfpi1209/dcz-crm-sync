@@ -1,6 +1,7 @@
 import re
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session
 from db import DB_DSN
@@ -9,7 +10,7 @@ avisos_bp = Blueprint("avisos_bp", __name__)
 
 
 def _get_conn():
-    return psycopg2.connect(**DB_DSN)
+    return conectar(**DB_DSN)
 
 
 def _require_admin():

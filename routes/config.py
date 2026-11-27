@@ -490,7 +490,9 @@ def api_schedules_toggle(schedule_id):
 @so_admin
 def api_debug():
     import app as _app
+    import db_pool
     return jsonify({
+        "db_pool": db_pool.estatisticas(),
         "sync_running": _app._sync_running,
         "sync_proc_alive": _app._sync_proc is not None and _app._sync_proc.poll() is None if _app._sync_proc else False,
         "sync_log_count": len(_app._sync_logs),

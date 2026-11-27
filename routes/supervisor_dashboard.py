@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, date
 from typing import Any
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify
 
@@ -26,7 +27,7 @@ supervisor_dashboard_bp = Blueprint("supervisor_dashboard", __name__)
 # ── conexões ─────────────────────────────────────────────────────────────────
 
 def _pg():
-    return psycopg2.connect(
+    return conectar(
         host=os.getenv("DB_HOST", "localhost"),
         port=os.getenv("DB_PORT", "5432"),
         user=os.getenv("DB_USER"),
@@ -36,7 +37,7 @@ def _pg():
 
 
 def _pg_kommo():
-    return psycopg2.connect(
+    return conectar(
         host=os.getenv("KOMMO_PG_HOST", os.getenv("DB_HOST", "localhost")),
         port=os.getenv("KOMMO_PG_PORT", os.getenv("DB_PORT", "5432")),
         user=os.getenv("KOMMO_PG_USER", os.getenv("DB_USER")),

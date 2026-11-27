@@ -13,6 +13,7 @@ import json
 from decimal import Decimal, InvalidOperation
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session
 
@@ -43,7 +44,7 @@ SETORES_VALIDOS = ("Acadêmico", "Comercial", "TI", "Marketing")
 
 
 def _get_conn():
-    return psycopg2.connect(**DB_DSN)
+    return conectar(**DB_DSN)
 
 
 def _session_user():
