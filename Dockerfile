@@ -1,3 +1,12 @@
+# Fase 4 (27/11): build do front novo (frontend/) numa etapa separada.
+# A imagem final leva só o resultado (frontend/dist); Node não vai para produção.
+FROM node:22-slim AS front
+WORKDIR /front
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.14-slim
 
 WORKDIR /app
@@ -9,6 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY --from=front /front/dist ./frontend/dist
 
 # Versões .gz/.br dos estáticos, servidas pelo WhiteNoise (entrega_web.py).
 # Na imagem os arquivos não mudam, então o WhiteNoise não relê o disco a cada pedido.

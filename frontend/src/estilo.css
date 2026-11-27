@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens do design system eduit. v2.0, copiados de templates/partials/_head.html
+   (27/11/2026) para o front novo ter as mesmas cores do painel atual. */
+:root {
+  --primary-rgb: 0 52 111;
+  --primary: #00346f;
+  --primary-container: #004a99;
+  --primary-light: #e6edf6;
+  --secondary: #006c49;
+  --secondary-container: #6cf8bb;
+  --danger: #dc2626;
+
+  --bg-main: #e4eaf2;
+  --bg-card: #f3f6fa;
+  --bg-elevated: #eef2f7;
+  --surface-variant: #e2e8f0;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  --border: #d1dae6;
+  --border-subtle: rgba(209, 218, 230, 0.85);
+  --outline: #737783;
+
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.07), 0 2px 8px -2px rgba(0, 52, 111, 0.05);
+  --radius-card: 20px;
+}
+
+.dark {
+  --primary-rgb: 116 174 233;
+  --primary: #74aee9;
+  --primary-container: #4c709a;
+  --primary-light: rgba(116, 174, 233, 0.12);
+  --secondary: #6cf8bb;
+  --secondary-container: #006c49;
+
+  --bg-main: #0b1623;
+  --bg-card: #122033;
+  --bg-elevated: #1a2942;
+  --surface-variant: rgba(255, 255, 255, 0.04);
+
+  --text-primary: #e6edf6;
+  --text-secondary: #9aabc3;
+  --text-muted: #6b7d97;
+
+  --border: rgba(76, 112, 154, 0.25);
+  --border-subtle: rgba(76, 112, 154, 0.15);
+  --outline: rgba(154, 171, 195, 0.4);
+
+  --shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: var(--bg-main);
+  color: var(--text-primary);
+}
+
+h1, h2, h3 {
+  font-family: "Manrope", "Inter", sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  display: inline-block;
+  white-space: nowrap;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+}
+
+.cartao {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.rotulo {
+  font-family: "Manrope", "Inter", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.item-menu {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+.item-menu:hover {
+  background: var(--primary-light);
+  color: var(--text-primary);
+}
+.item-menu[aria-current="page"] {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}

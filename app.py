@@ -252,6 +252,10 @@ app.register_blueprint(motor_ativacoes_bp)
 app.register_blueprint(motor_reprise_bp)
 app.register_blueprint(motor_resultados_bp)
 
+# Front novo (React + TS) em /app/ — Fase 4, etapa 2. Ver routes/front_novo.py.
+from routes.front_novo import front_novo_bp
+app.register_blueprint(front_novo_bp)
+
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
     from routes.atualizar_preco_app import app as _preco_app

@@ -95,6 +95,10 @@ ROTAS_SEM_PAGINA = frozenset({
     "/login",
     "/logout",
     "/",
+    # Casca do front novo (Fase 4): as telas chamam /api/ com a mesma permissão de sempre.
+    "/app",
+    "/app/",
+    "/app/<path:caminho>",
     "/api/track-page-view",
     "/api/avisos",
     "/api/avisos/nao-lidos",

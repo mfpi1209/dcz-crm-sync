@@ -26,3 +26,7 @@ flask_*.log
 # Versões comprimidas geradas no build (python -m whitenoise.compress static)
 static/**/*.gz
 static/**/*.br
+
+# Front novo (Fase 4): dependências e build saem do npm, não do Git
+frontend/node_modules/
+frontend/dist/
