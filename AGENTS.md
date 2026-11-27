@@ -43,6 +43,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - **Por que nessa ordem:** com o site em `tudo` e o worker ligado, cada job rodaria nos dois processos (a trava só impede que seja ao mesmo tempo).
   - **Horário:** evitar fazer isso perto das 08:00 (`engagement_daily`).
   - **Conferir:** o log do worker mostra "worker no ar com N jobs".
+  3. Copiar o webhook de deploy do serviço worker para o segredo `PAINEL_WORKER_DEPLOY_HOOK` do repositório (GitHub → Settings → Secrets → Actions). O workflow dispara os dois webhooks depois do build. Sem o segredo, só avisa, e o worker fica no código antigo.
 - **Depois, num passo separado:** subir os workers do Gunicorn (`--workers 2`). A SECRET_KEY fixa já está no ar. Cada worker roda os jobs de cache do site, de propósito; nenhum deles grava no banco.
 - **Não muda:** nenhum job mudou de horário nem de lógica. Os botões de sync/upload continuam no site. Sem `AGENDADOR`, o comportamento é o de antes.
 - **Testes:** `tests/test_fase3_agendador.py`: papéis, trava, classificação de todos os jobs, vigia, cópia `leads_rgm`, e trava real entre duas sessões no job `testes-pg`.

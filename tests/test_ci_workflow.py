@@ -67,3 +67,13 @@ def test_fila_de_deploy_so_no_job_de_deploy():
     cabecalho = TEXTO.split("\njobs:", 1)[0]
     assert "concurrency:" not in cabecalho
     assert "group: deploy-easypanel" in _job("build-and-deploy")
+
+
+def test_deploy_tambem_atualiza_o_worker_quando_configurado():
+    # Fase 3 (27/11): o worker é outro serviço do EasyPanel com a mesma imagem.
+    job = _job("build-and-deploy")
+    assert "secrets.PAINEL_WORKER_DEPLOY_HOOK" in job
+    passo = job.split("Call EasyPanel deploy webhook (worker)", 1)[1]
+    sem_segredo = passo.split("\n          fi\n", 1)[0]
+    assert "exit 0" in sem_segredo   # sem segredo: só aviso, não falha o deploy
+    assert "secrets.PAINEL_WORKER_DEPLOY_HOOK" not in _job("testes")
