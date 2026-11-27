@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, jsonify, request, session
 
@@ -52,7 +53,7 @@ _sync_lock = threading.Lock()
 
 
 def _pg_kommo():
-    return psycopg2.connect(**_KOMMO_DSN)
+    return conectar(**_KOMMO_DSN)
 
 
 def _set_meta(cur, entity: str, status: str, records: int = 0, error: str | None = None, full: bool = False):

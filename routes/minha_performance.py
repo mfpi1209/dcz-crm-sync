@@ -34,6 +34,7 @@ from datetime import datetime, date, timedelta, timezone as _tz
 BRT = _tz(timedelta(hours=-3))
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from flask import Blueprint, request, jsonify, session, g, has_request_context
 from services import leads_rgm
@@ -68,11 +69,11 @@ KOMMO_DB_DSN = dict(
 
 
 def _pg():
-    return psycopg2.connect(**DB_DSN)
+    return conectar(**DB_DSN)
 
 
 def _pg_kommo():
-    return psycopg2.connect(**KOMMO_DB_DSN)
+    return conectar(**KOMMO_DB_DSN)
 
 
 def _pg_safe_close(cur=None, conn=None):

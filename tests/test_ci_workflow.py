@@ -42,9 +42,18 @@ def test_job_de_testes_nao_usa_segredo_nem_postgres():
     assert "_TEST_DSN" not in job
 
 
+def test_job_do_pool_usa_so_postgres_descartavel():
+    # Fase 2 (27/11): Postgres criado no próprio job (service container), sem segredo.
+    job = _job("testes-pg")
+    assert "secrets." not in job
+    assert "image: postgres:" in job
+    assert "host=localhost" in job
+    assert "python -m pytest tests/test_db_pool.py" in job
+
+
 def test_build_e_deploy_dependem_dos_testes_e_nao_rodam_em_pr():
     job = _job("build-and-deploy")
-    assert re.search(r"^    needs: testes$", job, re.M)
+    assert re.search(r"^    needs: \[testes, testes-pg\]$", job, re.M)
     assert "if: github.event_name != 'pull_request'" in job
     # build, push e webhook continuam dentro do job que depende dos testes
     assert "docker/build-push-action" in job

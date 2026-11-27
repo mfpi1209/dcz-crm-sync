@@ -331,6 +331,7 @@
                         }
                         #cfg-section-usuarios .row-actions {
                             display: inline-flex;
+                            flex-wrap: nowrap;
                             align-items: center;
                             gap: .25rem;
                             justify-content: flex-end;
@@ -417,12 +418,13 @@
                         <div class="overflow-x-auto">
                             <table class="users-table">
                                 <colgroup>
-                                    <col style="width:30%">
-                                    <col style="width:16%">
-                                    <col style="width:10%">
-                                    <col style="width:26%">
-                                    <col style="width:10%">
-                                    <col style="width:8%">
+                                    <col>
+                                    <col style="width:15%">
+                                    <col style="width:9%">
+                                    <col style="width:25%">
+                                    <col style="width:12%">
+                                    <!-- 3 botões (Entrar como, Editar, Excluir): largura fixa para não vazar sobre "Criado em" -->
+                                    <col style="width:120px">
                                 </colgroup>
                                 <thead>
                                     <tr>

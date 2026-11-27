@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import psycopg2
+from db_pool import conectar
 import psycopg2.extras
 from dotenv import load_dotenv
 
@@ -39,7 +40,7 @@ DB_DSN = dict(
 
 
 def get_conn():
-    return psycopg2.connect(**DB_DSN)
+    return conectar(**DB_DSN)
 
 
 # Banco do Disparador (tool_whatsapp_alunos) — bases Matriculados/Financeiro/etc.
@@ -55,7 +56,7 @@ DISPAROS_DSN = dict(
 
 def get_disparos_conn():
     """Conexão read-oriented ao DB do Disparador (matriculados_snapshots/rows)."""
-    return psycopg2.connect(**DISPAROS_DSN)
+    return conectar(**DISPAROS_DSN)
 
 
 ME_DSN = dict(
@@ -68,7 +69,7 @@ ME_DSN = dict(
 
 
 def get_me_conn():
-    return psycopg2.connect(**ME_DSN)
+    return conectar(**ME_DSN)
 
 
 # Banco google_ads (matriculas_google: matrícula SIAA com gclid). Mesmo host/credencial.
@@ -82,7 +83,7 @@ GOOGLE_ADS_DSN = dict(
 
 
 def get_google_ads_conn():
-    return psycopg2.connect(connect_timeout=10, **GOOGLE_ADS_DSN)
+    return conectar(connect_timeout=10, **GOOGLE_ADS_DSN)
 
 
 # ---------------------------------------------------------------------------

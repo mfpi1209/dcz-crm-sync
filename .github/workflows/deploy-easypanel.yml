@@ -41,9 +41,49 @@ jobs:
       - name: pytest
         run: python -m pytest tests -q -rs
 
+  # Fase 2 (27/11): o pool de conexões (db_pool.py) testado num Postgres
+  # descartável, criado só para este job. Nenhum banco real, nenhum segredo:
+  # a senha abaixo vale só para o container que morre no fim do job.
+  testes-pg:
+    name: Pool no Postgres (descartável)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: descartavel
+          POSTGRES_DB: pool_teste
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.14 (mesma versão do Dockerfile)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: pytest (pool)
+        env:
+          POOL_TEST_DSN: "host=localhost port=5432 user=postgres password=descartavel dbname=pool_teste"
+        run: python -m pytest tests/test_db_pool.py -q -rs
+
   build-and-deploy:
     name: Build, push GHCR e deploy EasyPanel
-    needs: testes
+    needs: [testes, testes-pg]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
