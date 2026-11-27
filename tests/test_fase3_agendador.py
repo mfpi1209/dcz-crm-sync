@@ -430,3 +430,15 @@ def test_siaa_grava_status_mesmo_sem_dados(monkeypatch):
     monkeypatch.setattr(trava_jobs, "gravar_status", lambda job, em, erro: gravados.append((job, erro)))
     siaa_avisos.executar_job()
     assert gravados == [("siaa_avisos_incidentes", "fora do ar")]
+
+
+def test_imagem_escolhe_site_ou_worker_pelo_ambiente():
+    """O EasyPanel não troca o comando pela tela: AGENDADOR=worker escolhe o worker."""
+    script = (RAIZ / "iniciar.sh").read_text(encoding="utf-8")
+    assert '[ "$AGENDADOR" = "worker" ]' in script
+    assert "exec python worker.py" in script
+    assert script.rstrip().endswith("app:app")
+    assert "gunicorn --bind 0.0.0.0:5001 --workers 1 --threads 4 --timeout 600 app:app" in script
+    docker = (RAIZ / "Dockerfile").read_text(encoding="utf-8")
+    assert 'CMD ["./iniciar.sh"]' in docker
+    assert "chmod +x iniciar.sh" in docker

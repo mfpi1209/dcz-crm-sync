@@ -23,4 +23,7 @@ VOLUME ["/app/reports", "/app/logs"]
 
 EXPOSE 5001
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "1", "--threads", "4", "--timeout", "600", "app:app"]
+# AGENDADOR=worker roda os jobs (worker.py); senão, o site. Ver iniciar.sh.
+# O tr tira CR caso o arquivo venha de um checkout no Windows.
+RUN tr -d '\r' < iniciar.sh > /tmp/iniciar.sh && mv /tmp/iniciar.sh iniciar.sh && chmod +x iniciar.sh
+CMD ["./iniciar.sh"]
