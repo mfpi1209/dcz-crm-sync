@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Route, Routes, useParams } from "react-router-dom";
+import { registrarAcesso } from "./rastreio";
 import { Estrutura } from "./componentes/Estrutura";
 import { useMe } from "./me";
 import { Inicio } from "./paginas/Inicio";
@@ -13,10 +15,15 @@ function Tela() {
   const { pagina = "" } = useParams();
   const me = useMe();
   const Componente = TELAS_NOVAS[pagina];
-  if (!Componente || !me.data?.nav.paginas.includes(pagina)) {
+  const pode = !!Componente && !!me.data?.nav.paginas.includes(pagina);
+  // Mesmo registro de uso do painel atual, uma vez por tela aberta.
+  useEffect(() => {
+    if (pode) registrarAcesso(pagina);
+  }, [pode, pagina]);
+  if (!pode) {
     return <NaoEncontrada />;
   }
-  return <Componente />;
+  return <Componente key={pagina} />;
 }
 
 export function App() {
