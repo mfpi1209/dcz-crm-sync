@@ -472,8 +472,136 @@ ORDER BY total DESC
 """
 
 
+# ── Cache da rota de alunos (27/11) ───────────────────────────────────────
+# Medido em produção: ~30 s por chamada, sem cache, e duas ao mesmo tempo
+# chegavam a 55 s. Os dados vêm só do último upload de Matriculados (mais os
+# sumidos, que já têm cache por upload), então a resposta só muda quando o upload
+# muda. Chave: (snapshot_id, linhas do snapshot, filtros da tela). A contagem de
+# linhas pega também um upload ainda gravando no mesmo id (mesma regra dos sumidos).
+logger = logging.getLogger(__name__)
+_ALUNOS_PARAMS = ("from", "to", "nivel", "situacao", "ciclo", "tipo", "polo")
+_ALUNOS_MAX = 32
+_ALUNOS_CACHE: dict = {}          # chave -> resposta (dict)
+_ALUNOS_USADOS: dict = {}         # filtros -> última vez pedidos (para o aquecimento)
+_ALUNOS_LOCK = threading.Lock()
+_ALUNOS_CALC_LOCKS: dict = {}     # chave -> Lock (uma conta por chave de cada vez)
+_ALUNOS_APP = None                # app Flask, para o aquecimento rodar fora de request
+
+
+def _alunos_filtros(args) -> tuple:
+    return tuple((k, (args.get(k) or "").strip()) for k in _ALUNOS_PARAMS)
+
+
+def _alunos_versao(conn) -> tuple | None:
+    snap_id = _sumidos_latest_snapshot_id(conn)
+    if snap_id is None:
+        return None
+    return (snap_id, _sumidos_snapshot_row_count(conn, snap_id))
+
+
+def _alunos_calcular(filtros: tuple, versao: tuple):
+    """Resposta da chave, do cache ou calculada (uma conta por chave de cada vez)."""
+    chave = (versao, filtros)
+    with _ALUNOS_LOCK:
+        pronto = _ALUNOS_CACHE.get(chave)
+        if pronto is not None:
+            return pronto, True
+        trava = _ALUNOS_CALC_LOCKS.setdefault(chave, threading.Lock())
+    with trava:
+        with _ALUNOS_LOCK:
+            pronto = _ALUNOS_CACHE.get(chave)
+        if pronto is not None:
+            return pronto, True       # outra thread calculou enquanto esperava
+        from flask import current_app as _ca
+        with _ca.test_request_context("/api/dashboard/students", query_string=dict(filtros)):
+            resp = _api_dashboard_students_sem_cache()
+        status = resp[1] if isinstance(resp, tuple) else resp.status_code
+        corpo = (resp[0] if isinstance(resp, tuple) else resp).get_json()
+        if status != 200 or not isinstance(corpo, dict) or "error" in corpo:
+            return corpo, False       # erro não entra no cache
+        with _ALUNOS_LOCK:
+            # Upload novo: tudo que é de outra versão sai.
+            for k in [k for k in _ALUNOS_CACHE if k[0] != versao]:
+                _ALUNOS_CACHE.pop(k, None)
+            while len(_ALUNOS_CACHE) >= _ALUNOS_MAX:
+                _ALUNOS_CACHE.pop(next(iter(_ALUNOS_CACHE)))
+            _ALUNOS_CACHE[chave] = corpo
+            _ALUNOS_CALC_LOCKS.pop(chave, None)
+        return corpo, False
+
+
 @dashboard_bp.route("/api/dashboard/students")
 def api_dashboard_students():
+    filtros = _alunos_filtros(request.args)
+    try:
+        conn = get_disparos_conn()
+        try:
+            versao = _alunos_versao(conn)
+        finally:
+            conn.close()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    if versao is None:
+        return _api_dashboard_students_sem_cache()
+    with _ALUNOS_LOCK:
+        _ALUNOS_USADOS[filtros] = datetime.now()
+    corpo, do_cache = _alunos_calcular(filtros, versao)
+    if not isinstance(corpo, dict) or "error" in (corpo or {}):
+        return jsonify(corpo or {"error": "falha ao calcular"}), 500
+    resp = jsonify(corpo)
+    resp.headers["X-Cache"] = "hit" if do_cache else "miss"
+    return resp
+
+
+def aquecer_alunos_home() -> int:
+    """Job do site (cache por processo): recalcula os filtros pedidos nas últimas
+    24 h quando chega upload novo, para ninguém esperar os ~30 s. Devolve quantos."""
+    from datetime import timedelta as _td
+    try:
+        conn = get_disparos_conn()
+        try:
+            versao = _alunos_versao(conn)
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception("aquecer alunos: sem versão do upload")
+        return 0
+    if versao is None:
+        return 0
+    limite = datetime.now() - _td(hours=24)
+    with _ALUNOS_LOCK:
+        for f in [f for f, quando in _ALUNOS_USADOS.items() if quando < limite]:
+            _ALUNOS_USADOS.pop(f, None)
+        faltam = [f for f in _ALUNOS_USADOS if (versao, f) not in _ALUNOS_CACHE][:8]
+    if not faltam:
+        return 0
+    if _ALUNOS_APP is None:
+        return 0
+    feitos = 0
+    with _ALUNOS_APP.app_context():
+        for f in faltam:
+            _, _ = _alunos_calcular(f, versao)
+            feitos += 1
+    logger.info("alunos da home: %s filtro(s) aquecido(s) para o upload %s", feitos, versao[0])
+    return feitos
+
+
+def register_alunos_warm_job(sched, flask_app) -> None:
+    global _ALUNOS_APP
+    from apscheduler.triggers.interval import IntervalTrigger
+
+    _ALUNOS_APP = flask_app
+    sched.add_job(
+        aquecer_alunos_home,
+        IntervalTrigger(minutes=2),
+        id="alunos_home_warm",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+
+def _api_dashboard_students_sem_cache():
     dt_from = request.args.get("from", "")
     dt_to = request.args.get("to", "")
     f_nivel = request.args.get("nivel", "")

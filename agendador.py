@@ -36,6 +36,7 @@ JOBS_DO_SITE = frozenset({
     "mp_bwipo_periodo_warm",    # minha_performance._bwipo_periodo_cache
     "mv_leads_rgm_site",        # leads_rgm._ultimo_ok: o site passa a usar a cópia indexada
     "painel_cache_vigia",       # vence o cache do painel quando o worker remonta a base
+    "alunos_home_warm",         # dashboard._ALUNOS_CACHE (rota de alunos da home)
 })
 # Gravam no banco, chamam APIs ou o n8n: vão para o worker, sempre com a trava.
 # Lista só para conferência (tests/test_fase3_agendador.py): job fora das duas listas
@@ -66,6 +67,7 @@ JOBS_POR_PROCESSO = frozenset({
     "mp_bwipo_periodo_warm",
     "mv_leads_rgm_site",
     "painel_cache_vigia",
+    "alunos_home_warm",
 })
 
 
