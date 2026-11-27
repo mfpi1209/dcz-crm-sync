@@ -4,6 +4,21 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Modernização, Fase 4, etapa 3: primeira tela no front novo (Uso do Dashboard, `page_views`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** tela piloto da migração. A escolhida é só de leitura e só de admin, então ninguém da operação é afetado.
+- **Tela nova (`frontend/src/paginas/UsoDoDashboard.tsx`):** mesma API (`/api/page-views/stats`), mesmos filtros (Hoje, 7, 15 e 30 dias, com 30 como padrão, e datas livres com "Aplicar"), os mesmos 3 indicadores e as mesmas duas tabelas da tela antiga (`_page_views.html` + `page_views.js`).
+  - **Melhorias:** erro do servidor aparece na tela (a antiga ficava em branco); "Atualizando…" enquanto busca.
+  - **Não muda:** os números, a API, a permissão (só admin, conferida no servidor).
+- **Registro de uso:** toda tela do front novo registra a abertura em `/api/track-page-view` (`frontend/src/rastreio.ts`, `App.Tela`), igual ao `trackPageView` do `utils.js`. Sem isso, as telas migradas sumiriam deste mesmo relatório. É um registro por abertura, conferido no navegador.
+- **Onde abre:**
+  - No menu do front novo (`/app/`), "Uso do Dashboard" já leva a `/app/page_views`.
+  - No painel atual, o item continua abrindo a tela antiga. A troca do link antigo entra num PR separado, depois de a tela nova ser aprovada.
+- **Conferido em 27/11:** com a mesma resposta da API entregue às duas telas no painel local, indicadores, tabelas, selos e datas saíram iguais, linha por linha. Em produção, a API dos 30 dias trouxe 2076 acessos, 57 páginas com acesso e 21 sem acesso; as duas telas leem essa mesma resposta.
+- **Testes:**
+  - **Tela** (`UsoDoDashboard.test.tsx`): 30 dias no início, indicadores, preset, datas só com "Aplicar", Atualizar, período vazio, 403, erro 500, registro de uso, quem não tem a página não abre nem chama a API, link do menu.
+  - **Também:** `rastreio.test.ts` e `datas.test.ts`. São 32 testes no front.
+
 ### 2026-11-27 — Modernização, Fase 4, etapa 2: esqueleto do front novo (React + TypeScript) em `/app/`
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** segunda etapa do plano de separar o front do back (ver a entrada da etapa 1, logo abaixo).
