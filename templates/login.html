@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login — eduit.</title>
+    <title>{% block titulo %}Login — eduit.{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -355,6 +355,7 @@
                 </div>
             </div>
 
+            {% block conteudo %}
             <!-- Error message -->
             {% if error %}
             <div class="error-message mb-5 fade-in-up delay-100">
@@ -411,6 +412,7 @@
                     </button>
                 </div>
             </form>
+            {% endblock %}
 
             <!-- Footer -->
             <div class="footer-text fade-in-up delay-300">
