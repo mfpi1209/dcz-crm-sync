@@ -781,6 +781,14 @@ def register_bwipo_sync_job(sched):
             coalesce=True,
             next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
         )
+        sched.add_job(
+            vigiar_painel_base,
+            IntervalTrigger(minutes=1),
+            id="painel_cache_vigia",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         logger.info("bwipo owner recente a cada 5 min; base do painel a cada 10 min")
     except Exception:
         logger.exception("bwipo owner recente não agendou")
@@ -1574,6 +1582,44 @@ _painel_base_lock = threading.Lock()
 _painel_base_pendente = False
 
 
+# Fase 3 (27/11): com a base montada no worker, o site não fica sabendo pela memória.
+# O vigia (job do site, 1 min) lê o built_at da bwipo_painel_meta, que só muda quando
+# alguma linha mudou, e vence os caches deste processo, como a montagem fazia antes.
+_painel_meta_vista = None
+_painel_meta_vista_lock = threading.Lock()
+
+
+def _marcar_meta_vista(valor) -> None:
+    global _painel_meta_vista
+    with _painel_meta_vista_lock:
+        _painel_meta_vista = valor
+
+
+def vigiar_painel_base() -> bool:
+    """Vence os caches do painel se a base mudou em outro processo. True = venceu."""
+    global _painel_meta_vista
+    try:
+        conn = get_conn()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT built_at FROM bwipo_painel_meta WHERE id = 1")
+            row = cur.fetchone()
+            conn.rollback()
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception("vigia da base do painel")
+        return False
+    atual = row[0] if row else None
+    with _painel_meta_vista_lock:
+        anterior, _painel_meta_vista = _painel_meta_vista, atual
+    if anterior is None or atual is None or atual == anterior:
+        return False          # primeira leitura do processo, ou nada mudou
+    _expirar_caches_painel()
+    logger.info("base do painel mudou em outro processo (%s); caches vencidos", atual)
+    return True
+
+
 def clear_painel_response_cache():
     with _painel_cache_lock:
         _painel_cache.clear()
@@ -1777,6 +1823,8 @@ def _rebuild_painel_base_locked(invalidar: str = "forte") -> bool:
                     """,
                     (prefixo, built),
                 )
+                cur.execute("SELECT built_at FROM bwipo_painel_meta WHERE id = 1")
+                _marcar_meta_vista((cur.fetchone() or [None])[0])
             conn.commit()
         finally:
             conn.close()
@@ -1809,11 +1857,18 @@ def rebuild_painel_base(invalidar: str = "forte") -> bool:
             _painel_base_pendente = True
         return False
     try:
-        ok = _rebuild_painel_base_locked(invalidar)
-        while _painel_base_pendente:
-            _painel_base_pendente = False
-            ok = _rebuild_painel_base_locked("forte")
-        return ok
+        # Fase 3 (27/11): site e worker podem montar ao mesmo tempo. A "forte"
+        # (pedida por alguém) espera a outra terminar; a "suave" (job) só tenta.
+        from trava_jobs import trava_global
+
+        with trava_global("painel_base_rebuild", esperar=(invalidar == "forte")) as pegou:
+            if not pegou:
+                return False
+            ok = _rebuild_painel_base_locked(invalidar)
+            while _painel_base_pendente:
+                _painel_base_pendente = False
+                ok = _rebuild_painel_base_locked("forte")
+            return ok
     finally:
         _painel_base_lock.release()
 

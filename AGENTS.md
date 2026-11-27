@@ -4,6 +4,48 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Modernização, Fase 3: jobs agendados fora do site (worker) e trava no Postgres
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** tirar os jobs do APScheduler de dentro do Gunicorn e garantir que nenhum rode em dobro. É o pré-requisito para subir mais workers do site.
+- **Papel do processo (`agendador.py`, env `AGENDADOR`):**
+  - `tudo` (padrão): todos os jobs, como antes. Sem mexer no EasyPanel, nada muda.
+  - `site`: só os jobs que escrevem em memória lida pelas rotas.
+  - `worker`: os que gravam no banco ou chamam APIs. `worker.py` força esse papel.
+  - `nenhum`: nenhum job.
+  - **Como filtra:** `Agendador` (subclasse do `BackgroundScheduler`) filtra no `add_job`. Nenhum `register_*` mudou.
+- **Quem fica onde (levantamento de 27/11):**
+  - **Site (`JOBS_DO_SITE`):**
+    - `funnel_cache_warm` (+`_boot`): `kommo_sync._funnel_cache`;
+    - `mp_bwipo_periodo_warm`: `minha_performance._bwipo_periodo_cache`, que itera os períodos que as rotas pediram;
+    - `siaa_avisos_incidentes`: o `_ULTIMO` aparece na Conexão SIAA;
+    - os agendamentos da tela Config (`_run_scheduled_sync`, hoje só loga; as rotas `/api/schedules` mexem no agendador do próprio site);
+    - os dois jobs novos `mv_leads_rgm_site` e `painel_cache_vigia`;
+    - o aquecimento `warm_academic_sumidos_cache` (só roda em `tudo`/`site`).
+  - **Worker (`JOBS_DO_WORKER`):** `bwipo_owner_recente`, `bwipo_painel_base`, `bwipo_contact_ads`, `kommo_leads_dia`, `mv_leads_rgm`, `dist_comercial_schedule_check`, `blog_scheduled_publish`, `conversao_backfill` (+`_boot`), `engagement_daily`, `aceite_reconcile` e `responsible_history_daily` (os dois últimos só com `KOMMO_API_JOBS=1`).
+  - **Job novo:** precisa entrar numa das duas listas. O `tests/test_fase3_agendador.py` lê todos os `id=` do código e falha se algum ficar sem lado.
+- **Trava (`trava_jobs.py`):**
+  - **Jobs que gravam:** rodam embrulhados em `pg_try_advisory_lock(<hash do id>)`, numa conexão própria fora do pool (o `RESET ALL` do pool não solta lock de sessão). Se outro processo está rodando o mesmo job, a execução é pulada.
+  - **Por que:** cobre o deploy com o container velho e o novo de pé, site e worker ligados com o mesmo job, e vários workers do Gunicorn.
+  - **Sem banco:** roda sem trava (`TRAVA_JOBS_ESTRITA=1` pula em vez disso). `TRAVA_JOBS=0` desliga.
+  - **Cache por processo (`JOBS_POR_PROCESSO`):** roda sem trava. Cada processo do site aquece o seu; com trava, só um aqueceria.
+  - **`trava_global(nome)`:** trava de trecho entre processos, com espera de até N s. Ela substitui o `threading.Lock` onde site e worker fazem a mesma coisa:
+    - `rebuild_painel_base`: a "forte" (upload, tombamento) espera; a "suave" (job) só tenta;
+    - `_apply_turno` da Distribuição Comercial: o agendado (worker) e o manual (site) ficam em fila, como o `_apply_lock` fazia.
+    - A chave do trecho é diferente da do job: as duas sessões se bloqueariam.
+- **O que o site precisa saber do worker:**
+  - **Base do painel:** o `painel_cache_vigia` (1 min) lê `bwipo_painel_meta.built_at`, que só muda quando alguma linha mudou, e vence os caches do painel e da Minha Performance. Quem montou no próprio processo marca o valor como visto e não vence duas vezes.
+  - **Cópia `mv_leads_rgm`:** o `_ultimo_ok` vale por processo. O `mv_leads_rgm_site` (2 min, `leads_rgm.confirmar_copia`) confere em `pg_matviews` que a cópia existe e populada, e o site passa a usá-la. Se faltar, ele cria.
+- **Ressalva conhecida:** `aceite_reconcile`/`responsible_history_daily` usam o `_kommo_api_bg_lock` em memória, que deixa de serializar com as threads de aquecimento do site. Hoje os dois estão desligados (`KOMMO_API_JOBS=0`).
+- **Ligar em produção (EasyPanel), nesta ordem:**
+  1. Site com `AGENDADOR=site`.
+  2. Serviço novo, com a mesma imagem e as mesmas variáveis, comando `python worker.py`, sem domínio e sem porta.
+  - **Por que nessa ordem:** com o site em `tudo` e o worker ligado, cada job rodaria nos dois processos (a trava só impede que seja ao mesmo tempo).
+  - **Horário:** evitar fazer isso perto das 08:00 (`engagement_daily`).
+  - **Conferir:** o log do worker mostra "worker no ar com N jobs".
+- **Depois, num passo separado:** subir os workers do Gunicorn (`--workers 2`). A SECRET_KEY fixa já está no ar. Cada worker roda os jobs de cache do site, de propósito.
+- **Não muda:** nenhum job mudou de horário nem de lógica. Os botões de sync/upload continuam no site. Sem `AGENDADOR`, o comportamento é o de antes.
+- **Testes:** `tests/test_fase3_agendador.py`: papéis, trava, classificação de todos os jobs, vigia, cópia `leads_rgm`, e trava real entre duas sessões no job `testes-pg`.
+
 ### 2026-11-27 — Modernização, Fase 2: reaproveitamento de conexões, versões fixas e tabela de Usuários
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** terminar a Fase 2 com o pool de conexões e as versões fixas, e corrigir a coluna de ações da tabela de Usuários.

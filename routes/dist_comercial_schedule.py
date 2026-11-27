@@ -258,7 +258,13 @@ def _apply_turno(
     if turno_alvo not in ("dia", "noite"):
         return {"ok": False, "error": "turno_alvo invalido"}
 
-    with _apply_lock:
+    # Fase 3 (27/11): o aplicar agendado roda no worker e o manual no site; a trava
+    # no banco mantém os dois em fila, como o _apply_lock fazia dentro de um processo.
+    from trava_jobs import trava_global
+
+    with _apply_lock, trava_global("dist_comercial_apply", espera_max_s=120) as pegou:
+        if not pegou:
+            return {"ok": False, "error": "Outra aplicação de turno ainda está rodando. Tente de novo em instantes."}
         try:
             turno_map = _get_turno_map()
             snapshots = _get_snapshots()
