@@ -271,9 +271,16 @@ def _mesma_sessao(dsn, acao):
     with c.cursor() as cur:
         cur.execute("SELECT pg_backend_pid()")
         pid = cur.fetchone()[0]
+    c.rollback()             # a ação começa fora de transação, como numa conexão nova
     acao(c)
     c.close()
     c2 = db_pool.conectar(**dsn)
+    # Reaproveitada chega como uma nova: fora de transação, sem autocommit.
+    # (O código costuma fazer `conn.autocommit = True` logo depois do get_conn().)
+    assert c2.status == psycopg2.extensions.STATUS_READY
+    assert c2.autocommit is False
+    c2.autocommit = True
+    c2.autocommit = False
     with c2.cursor() as cur:
         cur.execute("SELECT pg_backend_pid()")
         assert cur.fetchone()[0] == pid, "o pool deveria ter reaproveitado a mesma sessão"
