@@ -190,3 +190,25 @@ jobs:
               exit 1
               ;;
           esac
+
+      # Fase 3 (27/11): o worker (python worker.py) é outro serviço no EasyPanel com a
+      # mesma imagem. Sem este passo ele ficaria no código antigo depois de cada push.
+      # Sem o segredo, só avisa (o worker ainda não existe ou foi desligado).
+      - name: Call EasyPanel deploy webhook (worker)
+        env:
+          DEPLOY_HOOK_WORKER: ${{ secrets.PAINEL_WORKER_DEPLOY_HOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_HOOK_WORKER:-}" ]; then
+            echo "::warning::Secret PAINEL_WORKER_DEPLOY_HOOK não configurado: o worker não foi atualizado."
+            exit 0
+          fi
+          http_code="$(curl -sS -o /tmp/easypanel-worker-body.txt -w '%{http_code}' -X POST --max-time 60 "$DEPLOY_HOOK_WORKER")"
+          echo "HTTP $http_code"
+          case "$http_code" in
+            2*) echo "Deploy do worker disparado." ;;
+            *)
+              echo "::error::Falha ao disparar o deploy do worker (HTTP $http_code)."
+              exit 1
+              ;;
+          esac
