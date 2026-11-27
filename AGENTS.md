@@ -4,6 +4,19 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-26 — Modernização, Fase 2: testes no CI antes do build
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** o pytest roda antes do build da imagem. Se algum teste falhar, não há build nem deploy. Os testes também rodam em PR para a `master`.
+- **Workflow (`.github/workflows/deploy-easypanel.yml`):**
+  - **Novo job `testes`:** Python 3.14, a mesma versão do `Dockerfile`. Instala `requirements.txt` + `pytest` e roda `python -m pytest tests -q -rs`. Usa só `contents: read`, nenhum segredo e nenhum Postgres.
+  - **`build-and-deploy`:** tem `needs: testes` e `if: github.event_name != 'pull_request'`. Em PR só os testes rodam: sem imagem, sem webhook.
+  - **Fila do deploy (`concurrency: deploy-easypanel`):** passou do workflow para o job de deploy. No nível do workflow, um PR entraria na mesma fila e poderia substituir um deploy pendente.
+- **Testes de banco no CI:** `test_motor_pg.py` e `test_siaa_avisos.py` (23 casos) continuam pulando sem `MOTOR_TEST_DSN` / `SIAA_AVISOS_TEST_DSN`. **Não colocar DSN nem segredo no job de testes.** Os harness JS (`tests/js`) rodam com o Node que o `ubuntu-latest` já traz; sem Node, eles pulam.
+- **Teste que dependia da ordem:** `tests/test_caminhos_siaa.py` trocava `psycopg2.connect` e `openpyxl.load_workbook` no import, inclusive quando os pacotes reais estavam instalados. Com isso, `test_precos_siaa_site_ia.py` falhava na suíte inteira (2 falhas) e passava sozinho. Agora o stub só entra quando o pacote não está instalado.
+- **Não muda:** os passos de build, push no GHCR, visibilidade do pacote, pull anônimo e o webhook do EasyPanel. Nenhum código do painel mudou.
+- **Testes:** `tests/test_ci_workflow.py` lê o YAML e confere os gatilhos, o `needs`, a ausência de segredo no job de testes e a fila só no deploy.
+- **Proteção da branch (fora do repo):** para o PR não poder ser mergeado com teste vermelho, marcar **"Testes (pytest)"** como check obrigatório da `master` em Settings → Branches no GitHub. Isso depende de alguém com admin no repo.
+
 ### 2026-11-26 — Inscrição - Automática: todas as telas e conferência SIAA em segundo plano
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** a página tem de ter todas as telas da interface do serviço, inclusive as que tinham ficado de fora; e a conferência no SIAA passou a responder 202 na hora (mudança no serviço).

@@ -8,12 +8,26 @@ import types
 import unittest
 from unittest.mock import patch
 
-for _nome in ("psycopg2", "psycopg2.extras", "openpyxl"):
-    sys.modules.setdefault(_nome, types.ModuleType(_nome))
-sys.modules["psycopg2"].connect = lambda *_a, **_k: None
-sys.modules["psycopg2.extras"].Json = object
-sys.modules["psycopg2.extras"].RealDictCursor = object
-sys.modules["openpyxl"].load_workbook = lambda *_a, **_k: None
+# Stub só quando o pacote não está instalado. Com o pacote real, trocar
+# psycopg2.connect / openpyxl.load_workbook no import vazava para os outros
+# arquivos da suíte (ex.: test_precos_siaa_site_ia recebia wb = None).
+def _instalado(nome: str) -> bool:
+    try:
+        __import__(nome)
+        return True
+    except ImportError:
+        return False
+
+
+if not _instalado("psycopg2"):
+    for _nome in ("psycopg2", "psycopg2.extras"):
+        sys.modules[_nome] = types.ModuleType(_nome)
+    sys.modules["psycopg2"].connect = lambda *_a, **_k: None
+    sys.modules["psycopg2.extras"].Json = object
+    sys.modules["psycopg2.extras"].RealDictCursor = object
+if not _instalado("openpyxl"):
+    sys.modules["openpyxl"] = types.ModuleType("openpyxl")
+    sys.modules["openpyxl"].load_workbook = lambda *_a, **_k: None
 
 import flask
 
