@@ -4,6 +4,25 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Modernização, Fase 4 (separar front e back), etapa 1: regra do menu no servidor e bloco `nav` no `/api/me`
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** separar o front do back sem reescrever. O plano aprovado tem cinco etapas:
+  1. a regra do menu sai do Jinja e passa a ser servida pela API;
+  2. esqueleto React + TypeScript (Vite) em `frontend/`, servido pelo próprio Flask em `/app/`, no mesmo endereço (login, cookie e permissões iguais, sem CORS);
+  3. uma tela piloto só de leitura;
+  4. as demais telas, uma por PR, com a antiga no ar até a nova ser aprovada;
+  5. a virada: o front novo passa a abrir em `/` e os templates saem.
+- **Ponto de partida:** a permissão de cada `/api/` já é conferida no servidor desde 26/11 (`permissoes.py`, com teste). O menu só decide o que aparece; não protege nada. Por isso o front separado não abre acesso novo.
+- **`navegacao.py` (novo):** `carregar_usuario()` (era `app._nav_load_user_data`) e `Menu` com:
+  - `pode(page)`, que era o `nav_can`;
+  - `pagina_inicial`, `paginas_permitidas()` e `para_api()`;
+  - `secoes()`, com os grupos do menu lateral que antes eram 12 `{% set _show_... %}` no `_sidebar.html`.
+- **O Jinja continua igual:** `app.inject_nav_perms` entrega os mesmos nomes (`nav_can`, `nav_is_admin`, `nav_initial_page`, `nav_allowed_pages`...) a partir de `Menu`, mais `nav_secoes`. O `_sidebar.html` lê os grupos de `nav_secoes.<grupo>`. Os nomes antigos do `app.py` (`_NAV_ALWAYS`, `_NAV_ADMIN_ONLY`, `_NAV_KNOWN_PAGES`, `_nav_load_user_data`) apontam para o módulo.
+- **`/api/me`:** ganhou o bloco `nav` (`is_admin`, `is_comercial`, `is_suporte_comercial`, `pagina_inicial`, `paginas`, `secoes`). Os campos antigos ficam exatamente como estavam, porque 7 telas antigas os leem.
+- **Regra para mexer no menu:** grupo ou tela nova do menu entra em `navegacao.GRUPOS` / `helpers.ALL_PAGES`, não em expressão no template. Assim o menu antigo e o front novo não divergem.
+- **Não muda:** quem vê qual tela, a tela inicial de cada perfil e as permissões das APIs. Conferido em 27/11: o HTML de `/` saiu idêntico byte a byte entre a `master` e a versão nova (admin local).
+- **Testes:** `tests/test_navegacao.py` compara com uma cópia congelada do código anterior numa grade de 972 perfis (papel × categoria × login × conjunto de páginas). A comparação cobre cada tela, a tela inicial, a lista permitida e os 12 grupos, avaliando as expressões antigas do template com o próprio Jinja. Também cobre a promoção de subpáginas, o banco fora do ar e o `/api/me` (bloco `nav`, campos antigos, admin de emergência, 401 sem login).
+
 ### 2026-11-27 — Cache da rota de alunos da home (`/api/dashboard/students`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** atacar o que mais pesa no painel, medido antes de subir mais processos.

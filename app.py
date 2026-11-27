@@ -122,127 +122,30 @@ def inject_static_version():
 
 
 # ── Permissões de navegação injetadas no template (sem flash de UI) ───────
-from helpers import ALL_PAGES as _NAV_ALL_PAGES
-from helpers import can_access_subir_blog as _can_access_subir_blog
+# A regra mora em navegacao.py (Fase 4, etapa 1): o /api/me devolve o mesmo resultado.
+import navegacao as _navegacao
 from db import get_conn as _nav_get_conn
 
-# Páginas pessoais — sempre visíveis (exceto regras específicas, ex: comercial sem dashboard)
-# Chamados NÃO entram aqui: `solicitacoes_ti` depende da categoria
-# (CHAMADOS_ABRIR_CATEGORIAS), `meus_chamados_ti` da categoria ou de já ter
-# chamado, e `chamados_ti` (fila) da allowlist — tudo reconciliado em
-# _ensure_chamados_ti_page.
-_NAV_ALWAYS = ("avisos", "profile")
-# Páginas restritas a admin — nunca visíveis para outros perfis, mesmo com permissão explícita.
-_NAV_ADMIN_ONLY = frozenset({"siaa_consulta", "siaa_sessao", "match_inadimplentes", "materias_alunos", "tracker_tarefas", "conexao_siaa"})
-# Conjunto completo conhecido pelo front (PAGES no utils.js + páginas pessoais)
-_NAV_KNOWN_PAGES = sorted(set(_NAV_ALL_PAGES) | set(_NAV_ALWAYS) | {"dashboard"})
-
-
-def _nav_load_user_data():
-    """Retorna (role, set(pages), categoria) do usuário logado, com fallback seguro."""
-    if not session.get("authenticated"):
-        return "", set(), ""
-    role = (session.get("role") or "").strip()
-    uid = session.get("user_id", 0)
-    if role == "admin" or uid == 0:
-        return (role or "admin"), set(_NAV_ALL_PAGES), ""
-    pages = set()
-    categoria = ""
-    try:
-        conn = _nav_get_conn()
-        with conn.cursor() as cur:
-            cur.execute("SELECT categoria FROM app_users WHERE id = %s", (uid,))
-            r = cur.fetchone()
-            if r and r[0]:
-                categoria = r[0]
-            cur.execute("SELECT page FROM user_permissions WHERE user_id = %s", (uid,))
-            pages = {row[0] for row in cur.fetchall()}
-        conn.close()
-    except Exception:
-        pages = set()
-    # Promove sub-permissoes "disparador_whatsapp_*" pra master "disparador_whatsapp"
-    # — o sidebar/nav_can testa a master pra decidir se mostra o link no menu
-    # do Acadêmico. Ter qualquer sub equivale a ter acesso ao modulo.
-    if any(p.startswith("disparador_whatsapp_") for p in pages):
-        pages.add("disparador_whatsapp")
-    # Inscrição - Automática: quem administra também opera (o menu testa a master).
-    if "inscricao_automatica_admin" in pages:
-        pages.add("inscricao_automatica")
-    # Fila de chamados é uma página só, escopada por departamento no backend.
-    # Quem tem a fila de Marketing (`chamados_marketing`) precisa abrir a
-    # mesma página `chamados_ti` — lá só verá os chamados de Marketing.
-    if "chamados_marketing" in pages:
-        pages.add("chamados_ti")
-    return role, pages, categoria
+_NAV_ALWAYS = _navegacao.SEMPRE
+_NAV_ADMIN_ONLY = _navegacao.SO_ADMIN
+_NAV_KNOWN_PAGES = _navegacao.CONHECIDAS
+_nav_load_user_data = _navegacao.carregar_usuario
 
 
 @app.context_processor
 def inject_nav_perms():
-    role, pages, categoria = _nav_load_user_data()
-    from helpers import (
-        is_suporte_comercial_categoria,
-        is_suporte_comercial_login,
-        pode_abrir_chamado,
-    )
-
-    is_admin = role == "admin"
-    username = (session.get("username") or "").strip()
-    cat_lower = (categoria or "").strip().lower()
-    is_comercial = (not is_admin) and cat_lower == "comercial"
-    is_suporte_comercial = (not is_admin) and (
-        is_suporte_comercial_categoria(categoria)
-        or is_suporte_comercial_login(username)
-    )
-    perf_home = is_comercial or is_suporte_comercial
-
-    pode_chamado = pode_abrir_chamado(role, categoria)
-
-    def nav_can(page):
-        if page == "subir_blog":
-            return _can_access_subir_blog(role, username, pages)
-        if is_admin:
-            return True
-        if page in _NAV_ADMIN_ONLY:
-            return False
-        # Abrir chamado segue a categoria (mesma regra do gate no POST).
-        if page == "solicitacoes_ti":
-            return pode_chamado
-        # Quem perdeu o direito de abrir continua acompanhando o histórico.
-        if page == "meus_chamados_ti":
-            return pode_chamado or ("meus_chamados_ti" in pages)
-        if perf_home and page == "dashboard":
-            return False
-        if page in _NAV_ALWAYS:
-            return True
-        if (not perf_home) and page == "dashboard":
-            return True
-        return page in pages
-
-    is_academico_simples = (
-        (not is_admin)
-        and cat_lower in ("acadêmico", "academico")
-        and ("meus_atendimentos" in pages)
-    )
-
-    if perf_home:
-        nav_initial_page = "minha_performance"
-    elif is_academico_simples:
-        nav_initial_page = "meus_atendimentos"
-    else:
-        nav_initial_page = "dashboard"
-
-    allowed_pages = sorted(p for p in _NAV_KNOWN_PAGES if nav_can(p))
-
+    menu = _navegacao.menu_do_usuario()
     return {
-        "nav_role": role,
-        "nav_pages": sorted(pages),
-        "nav_categoria": categoria,
-        "nav_is_admin": is_admin,
-        "nav_is_comercial": is_comercial,
-        "nav_is_suporte_comercial": is_suporte_comercial,
-        "nav_can": nav_can,
-        "nav_initial_page": nav_initial_page,
-        "nav_allowed_pages": allowed_pages,
+        "nav_role": menu.role,
+        "nav_pages": sorted(menu.pages),
+        "nav_categoria": menu.categoria,
+        "nav_is_admin": menu.is_admin,
+        "nav_is_comercial": menu.is_comercial,
+        "nav_is_suporte_comercial": menu.is_suporte_comercial,
+        "nav_can": menu.pode,
+        "nav_initial_page": menu.pagina_inicial,
+        "nav_allowed_pages": menu.paginas_permitidas(),
+        "nav_secoes": menu.secoes(),
     }
 
 

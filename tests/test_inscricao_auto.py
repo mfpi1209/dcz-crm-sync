@@ -321,7 +321,9 @@ def test_pagina_registrada_em_todos_os_lugares():
     assert "inscricao_automatica" in ALL_PAGES and "inscricao_automatica_admin" in ALL_PAGES
     app_src = (RAIZ / "app.py").read_text(encoding="utf-8")
     assert "app.register_blueprint(inscricao_auto_bp)" in app_src
-    assert '"inscricao_automatica_admin" in pages' in app_src
+    # A promoção admin -> operar mora em navegacao.py desde 27/11 (Fase 4, etapa 1).
+    nav_src = (RAIZ / "navegacao.py").read_text(encoding="utf-8")
+    assert '"inscricao_automatica_admin" in pages' in nav_src
     utils = (RAIZ / "static/js/utils.js").read_text(encoding="utf-8")
     assert "'inscricao_automatica'" in utils and "inscricao_automatica: 'Inscrição - Automática'" in utils
     assert "loadInscricaoAutomatica()" in utils

@@ -9,6 +9,7 @@ from db import get_conn, DB_DSN
 from helpers import ALL_PAGES, APP_USER_FALLBACK, APP_PASS_FALLBACK, to_brt
 from seguranca import conferir_senha, gerar_hash
 import troca_senha
+import navegacao
 
 logger = logging.getLogger(__name__)
 
@@ -294,6 +295,9 @@ def api_me():
         "email_cruzeiro": email_cruzeiro,
         "display_name": display_name_from_login(username, email_cruzeiro or ""),
         "is_suporte_comercial": is_suporte,
+        # Fase 4 (27/11): o menu calculado no servidor, igual ao do Jinja, para o
+        # front novo. Os campos acima ficam como estão (7 telas antigas os usam).
+        "nav": navegacao.menu_do_usuario().para_api(),
     })
 
 
