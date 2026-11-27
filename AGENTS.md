@@ -4,6 +4,22 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Cache da rota de alunos da home (`/api/dashboard/students`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** atacar o que mais pesa no painel, medido antes de subir mais processos.
+- **Medição em produção (27/11, só leitura, admin):**
+  - **Rápidas:** quase todas as rotas das telas principais respondem em 15–300 ms.
+  - **Minha Performance:** `insights` ~1 s.
+  - **`/api/dashboard/students?ciclo=2027/1`:** 28–39 s em **toda** chamada. Duas ao mesmo tempo levaram 27 s e 55 s; na rodada com tudo junto, o `insights` foi de 1 s para 21 s.
+  - **Conclusão:** a home chama essa rota sempre; é a maior parte do "painel pesado".
+- **Cache (`routes/dashboard.py`):**
+  - **Chave:** `(snapshot_id do último upload de Matriculados, linhas do snapshot, filtros from/to/nivel/situacao/ciclo/tipo/polo)`. A rota só lê o último upload e os sumidos, que já têm cache pela mesma chave. A contagem de linhas pega um upload ainda gravando no mesmo id.
+  - **Como:** a conta original virou `_api_dashboard_students_sem_cache`, sem nenhuma mudança na lógica. A rota confere a versão, devolve do cache ou calcula. Mesma chave ao mesmo tempo: só uma conta, as outras esperam o resultado. Erro não entra no cache. Upload novo: as chaves da versão anterior saem. Até 32 chaves. Cabeçalho `X-Cache: hit|miss` para medir.
+  - **Aquecimento:** job `alunos_home_warm` (site, por processo, 2 min) recalcula os filtros pedidos nas últimas 24 h quando o upload muda, até 8 por rodada. A primeira pessoa depois de um upload não espera os ~30 s. Depois de reiniciar o processo, a primeira chamada de cada filtro ainda paga a conta.
+- **Por que não subir 2 processos agora:** o levantamento de 27/11 achou 6 telas com tarefa e progresso na memória do processo, que quebrariam com 2 processos. São elas: sync Kommo (`kommo_sync._tasks`), sync Bwipo (`bwipo_sync._tasks`), merge de leads (`kommo_merge_route._merge_jobs`), Match & Merge (`match_merge._running/_result/...`), preços de Pós (`bwipo_precos._POS_JOBS`) e Matérias dos alunos (`materias_alunos._job`). Elas precisam guardar o estado no banco antes de `WEB_WORKERS>1`.
+- **Não muda:** a resposta, os filtros, a permissão da rota e os números.
+- **Testes:** `tests/test_cache_alunos_home.py`: hit/miss, filtro diferente, upload novo ou gravando, erro fora do cache, uma conta só com 5 pedidos juntos, parâmetros e aquecimento.
+
 ### 2026-11-27 — Upload Comercial: 2 matrículas no mesmo dia, cada RGM no seu negócio
 
 Caso Giulia Bonfante (#117659 Marketing / #76837 Publicidade): no MATRICULADO D-1 (`gerar_acoes`, `match_merge_lib.py`) os dois negócios abertos do CPF empatavam na fase e o escolhido saía da ordem de um `set` (muda a cada processo). As duas matrículas iam para o mesmo negócio, a segunda sobrescrevia RGM e curso da primeira, e o outro ficava em Aceite.

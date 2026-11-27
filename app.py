@@ -495,6 +495,9 @@ register_conversao_backfill_job(scheduler)
 # Incidentes SIAA -> Avisos (so age com SIAA_AVISOS_INCIDENTES=1; ver siaa_avisos.py)
 from siaa_avisos import register_siaa_avisos_job
 register_siaa_avisos_job(scheduler)
+# Cache da rota de alunos da home (~30 s sem cache): aquece por processo do site.
+from routes.dashboard import register_alunos_warm_job
+register_alunos_warm_job(scheduler, app)
 if scheduler.papel in ("tudo", "site"):
     # Cache em memória das rotas do dashboard: só faz sentido no processo do site.
     warm_academic_sumidos_cache()
