@@ -4,6 +4,17 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Fase 4: menu do painel atual abre a tela nova de Uso do Dashboard
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** o usuário comparou as duas telas em produção e aprovou trocar o link.
+- **Mudança:** no `_sidebar.html`, o item "Uso do Dashboard" (TI) agora é `href="/app/page_views"`, sem o `onclick="navigate(...)"`. A tela antiga continua no código e abre por `/#page_views`, para quem tiver o link salvo.
+- **Regra para as próximas telas:**
+  1. a tela entra em `TELAS_NOVAS` (`frontend/src/telas.tsx`) e é publicada;
+  2. o usuário compara em produção e aprova;
+  3. o item do `_sidebar.html` passa a `href="/app/<tela>"`.
+  A tela antiga (partial, JS, `include` no `index.html`) só sai na Etapa 5. `tests/test_front_novo.py::test_menu_antigo_leva_as_telas_migradas_ao_front_novo` falha se uma tela de `TELAS_NOVAS` ficar com o link antigo no menu.
+- **Não muda:** a permissão (o item só aparece para quem tem `page_views`; a API continua só admin) e o registro de uso (a tela nova registra a abertura).
+
 ### 2026-11-27 — Modernização, Fase 4, etapa 3: primeira tela no front novo (Uso do Dashboard, `page_views`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** tela piloto da migração. A escolhida é só de leitura e só de admin, então ninguém da operação é afetado.
