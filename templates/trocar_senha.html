@@ -1,0 +1,56 @@
+{% extends "login.html" %}
+{# Troca da própria senha (26/11). Mesmo visual do login; rota em routes/auth.py (trocar_senha). #}
+
+{% block titulo %}Trocar senha — eduit.{% endblock %}
+
+{% block conteudo %}
+            {% if obrigatoria %}
+            <div class="mb-5 fade-in-up delay-100 text-sm leading-relaxed rounded-xl px-4 py-3"
+                 style="background: rgba(245,158,11,0.10); border: 1px solid rgba(245,158,11,0.35); color: #fcd34d;">
+                Por segurança, troque a sua senha antes de continuar.
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="error-message mb-5 fade-in-up delay-100">
+                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <form method="POST" class="space-y-5">
+                <div class="fade-in-up delay-200">
+                    <label class="form-label" for="senha_atual">Senha atual</label>
+                    <input id="senha_atual" type="password" name="senha_atual" required autofocus
+                           class="input-glass" autocomplete="current-password">
+                </div>
+
+                <div class="fade-in-up delay-200">
+                    <label class="form-label" for="nova_senha">Nova senha</label>
+                    <input id="nova_senha" type="password" name="nova_senha" required
+                           minlength="{{ tamanho_minimo }}" maxlength="128"
+                           placeholder="Pelo menos {{ tamanho_minimo }} caracteres"
+                           class="input-glass" autocomplete="new-password">
+                </div>
+
+                <div class="fade-in-up delay-200">
+                    <label class="form-label" for="confirmacao">Repita a nova senha</label>
+                    <input id="confirmacao" type="password" name="confirmacao" required
+                           minlength="{{ tamanho_minimo }}" maxlength="128"
+                           class="input-glass" autocomplete="new-password">
+                </div>
+
+                <div class="pt-2 fade-in-up delay-300">
+                    <button type="submit" class="btn-primary flex items-center justify-center gap-2">
+                        Trocar senha
+                    </button>
+                </div>
+            </form>
+
+            <p class="mt-5 text-center text-xs text-slate-400">
+                {% if not obrigatoria %}<a href="/" class="underline hover:text-white">Voltar ao painel</a> · {% endif %}
+                <a href="/logout" class="underline hover:text-white">Sair</a>
+            </p>
+{% endblock %}

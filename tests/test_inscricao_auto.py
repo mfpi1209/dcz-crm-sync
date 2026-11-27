@@ -337,17 +337,22 @@ def test_pagina_registrada_em_todos_os_lugares():
     assert 'id="page-inscricao_automatica" class="hidden"' in partial
 
 
-def test_todas_as_abas_na_pagina_e_na_ordem():
-    """Todas as telas da interface do serviço viram abas desta página."""
+def test_abas_agrupadas_numa_linha_e_secoes_na_pagina():
+    """6 abas (grupos) numa linha; cada seção da interface do serviço fica num grupo (sub-aba)."""
     import re as _re
     partial = (RAIZ / "templates/partials/_inscricao_automatica.html").read_text(encoding="utf-8")
-    abas = _re.findall(r'id="insa-tab-([a-z]+)" data-aba=', partial)
-    assert abas == ["visao", "fila", "nova", "painel", "cadastros", "crm", "afiliados", "siaa",
-                    "agente", "manutencao", "config", "eventos", "simulacao"]
-    for a in abas:
-        assert f'id="insa-sec-{a}"' in partial, a
+    grupos = _re.findall(r'id="insa-tab-([a-z]+)" data-grupo=', partial)
+    assert grupos == ["visao", "fila", "nova", "relatorios", "manutencao", "config"]
     js = (RAIZ / "static/js/inscricao_automatica.js").read_text(encoding="utf-8")
-    assert "const PAINEIS = { visao, fila, nova, painel, cadastros, crm, afiliados, siaa, agente, manutencao, config, eventos, simulacao };" in js
+    secoes = ["visao", "fila", "nova", "painel", "cadastros", "afiliados", "siaa",
+              "agente", "manutencao", "config", "eventos", "simulacao"]
+    assert "const PAINEIS = { visao, fila, nova, painel, cadastros, afiliados, siaa, agente, manutencao, config, eventos, simulacao };" in js
+    bloco = js[js.index("const GRUPOS = {"):js.index("};", js.index("const GRUPOS = {"))]
+    for sec in secoes:
+        assert f'id="insa-sec-{sec}"' in partial, sec
+        assert f"'{sec}'" in bloco, f"seção {sec} fora de GRUPOS"
+    # Integração CRM antiga (POST /api/crm/inscricoes) saiu da tela: o crm1 entra pelo webhook
+    assert 'id="insa-sec-crm"' not in partial
 
 
 def test_todas_as_rotas_que_a_tela_chama_estao_liberadas():
@@ -374,7 +379,7 @@ def test_todas_as_rotas_que_a_tela_chama_estao_liberadas():
             rotas.update(b.replace("${id}", "J000001").replace("${acao}", x).split("${")[0] for x in ("reprocessar", "cancelar"))
         else:
             rotas.add(_re.sub(r"\$\{([^}]*)\}", trocar, b))
-    assert {"painel", "crm", "crm/token", "crm/modo", "afiliados", "afiliados/chave", "manutencao",
+    assert {"painel", "afiliados", "afiliados/chave", "manutencao",
             "manutencao/diagnosticos", "manutencao/aplicar", "manutencao/ia", "orq/conferencia/siaa"} <= rotas
     metodos = ["GET", "POST", "PUT", "DELETE"]
     for rota in rotas:

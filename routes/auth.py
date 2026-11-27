@@ -7,6 +7,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from db import get_conn, DB_DSN
 from helpers import ALL_PAGES, APP_USER_FALLBACK, APP_PASS_FALLBACK, to_brt
 from seguranca import conferir_senha, gerar_hash
+import troca_senha
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,9 @@ def require_auth():
         if request.path.startswith("/api/"):
             return jsonify({"error": "Não autenticado"}), 401
         return redirect(url_for("auth_bp.login"))
+    barrado = troca_senha.bloqueio()  # troca de senha obrigatória
+    if barrado is not None:
+        return barrado
     if "role" not in session:
         uid = session.get("user_id")
         if uid is not None and uid != 0:
@@ -147,6 +151,7 @@ def login():
             session["user_id"] = db_user["id"]
             session["username"] = db_user["username"]
             session["role"] = db_user["role"]
+            session[troca_senha.CHAVE_SESSAO] = _precisa_trocar_senha(db_user["id"])
             return redirect("/")
         if APP_PASS_FALLBACK and user == APP_USER_FALLBACK and pwd == APP_PASS_FALLBACK:
             session["authenticated"] = True
@@ -156,6 +161,71 @@ def login():
             return redirect("/")
         error = "Usuário ou senha incorretos."
     return render_template("login.html", error=error)
+
+
+def _precisa_trocar_senha(uid):
+    """Flag do usuário. Sem a coluna (boot sem migração) ou sem banco: False, e o login segue."""
+    try:
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT precisa_trocar_senha FROM app_users WHERE id = %s", (uid,))
+                row = cur.fetchone()
+        finally:
+            conn.close()
+        return bool(row and row[0])
+    except Exception:
+        logger.warning("Não consegui ler precisa_trocar_senha do usuário %s", uid)
+        return False
+
+
+@auth_bp.route(troca_senha.URL, methods=["GET", "POST"])
+def trocar_senha():
+    """Troca da própria senha: atual + nova duas vezes. Grava scrypt e desliga a flag."""
+    obrigatoria = bool(session.get(troca_senha.CHAVE_SESSAO))
+
+    def _tela(error=None, status=200):
+        return render_template(
+            "trocar_senha.html", error=error, obrigatoria=obrigatoria,
+            tamanho_minimo=troca_senha.TAMANHO_MINIMO,
+        ), status
+
+    if request.method == "GET":
+        return _tela()
+
+    uid = session.get("user_id")
+    if not uid:
+        return _tela("O login de emergência não tem senha no banco: a senha dele é a variável APP_PASS.", 400)
+
+    atual = request.form.get("senha_atual", "")
+    nova = request.form.get("nova_senha", "")
+    erro = troca_senha.validar_nova_senha(atual, nova, request.form.get("confirmacao", ""))
+    if erro:
+        return _tela(erro, 400)
+
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT pw_hash FROM app_users WHERE id = %s", (uid,))
+            row = cur.fetchone()
+            ok, _ = conferir_senha(atual, row["pw_hash"]) if row else (False, False)
+            if not ok:
+                return _tela("Senha atual incorreta.", 400)
+            cur.execute(
+                "UPDATE app_users SET pw_hash = %s, precisa_trocar_senha = FALSE WHERE id = %s",
+                (gerar_hash(nova), uid),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        logger.exception("trocar_senha uid=%s", uid)
+        return _tela("Não foi possível gravar a nova senha. Tente de novo.", 500)
+    finally:
+        conn.close()
+
+    session.pop(troca_senha.CHAVE_SESSAO, None)
+    logger.info("Usuário %s trocou a própria senha", uid)
+    return redirect("/")
 
 
 @auth_bp.route("/logout")
@@ -394,6 +464,60 @@ def api_users_delete(uid):
         }), 409
     conn.close()
     return jsonify({"ok": True})
+
+
+@auth_bp.route("/api/users/<int:uid>/entrar-como", methods=["POST"])
+def api_users_entrar_como(uid):
+    """Admin passa a ver o painel como outro usuário, sem saber a senha dele (26/11).
+
+    Guarda o admin em `session["admin_original"]` (só o primeiro, se encadear) e
+    registra no log. `/voltar-admin` desfaz. Não mexe em senha nem no banco.
+    """
+    if session.get("role") != "admin":
+        return jsonify({"error": "Sem permissão"}), 403
+    if uid == session.get("user_id"):
+        return jsonify({"error": "Você já está neste usuário"}), 400
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT id, username, role FROM app_users WHERE id = %s", (uid,))
+            alvo = cur.fetchone()
+    finally:
+        conn.close()
+    if not alvo:
+        return jsonify({"error": "Usuário não encontrado"}), 404
+
+    original = session.get("admin_original") or {
+        "user_id": session.get("user_id"),
+        "username": session.get("username"),
+        "role": session.get("role"),
+    }
+    session["admin_original"] = original
+    session["user_id"] = alvo["id"]
+    session["username"] = alvo["username"]
+    session["role"] = alvo["role"]
+    session[troca_senha.CHAVE_SESSAO] = False  # o admin nunca cai na troca de senha do outro
+    logger.info(
+        "ENTRAR_COMO: admin %s (id %s) entrou como %s (id %s)",
+        original["username"], original["user_id"], alvo["username"], alvo["id"],
+    )
+    return jsonify({"ok": True, "redirect": "/"})
+
+
+@auth_bp.route("/voltar-admin", methods=["POST"])
+def voltar_admin():
+    """Sai do "Entrar como" e volta ao admin original."""
+    original = session.pop("admin_original", None)
+    if original:
+        logger.info(
+            "ENTRAR_COMO: admin %s (id %s) voltou (estava como %s)",
+            original.get("username"), original.get("user_id"), session.get("username"),
+        )
+        session["user_id"] = original.get("user_id")
+        session["username"] = original.get("username")
+        session["role"] = original.get("role")
+        session[troca_senha.CHAVE_SESSAO] = False
+    return redirect("/")
 
 
 @auth_bp.route("/api/users/import-kommo", methods=["POST"])

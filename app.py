@@ -425,6 +425,8 @@ _ensure_ciclos_comercial_table()
 _ensure_turmas_comercial_table()
 _ensure_ciclo_atual_comercial_table()
 _ensure_users_table()
+import troca_senha  # noqa: E402
+troca_senha.garantir_coluna(_nav_get_conn)  # app_users.precisa_trocar_senha (26/11)
 _ensure_academico_interacoes_page()
 _ensure_suporte_comercial_users()
 _ensure_xl_snapshots_table()

@@ -65,6 +65,31 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Não muda:** as rotas que já checavam, as de preço, `exige_pagina`/`tem_alguma_pagina`, o login e o `require_auth`.
 - **Testes:** `tests/test_permissao_rotas.py` (624, inclusive a regra do menu para `dashboard`). Para cada endpoint do mapa: 403 sem a página, 200 com qualquer uma das páginas, admin passa. Também conferem que o endpoint existe no código, a amostra aprovada e a guarda de rota nova.
 
+### 2026-11-26 — Senha: troca pelo próprio usuário e troca obrigatória (`troca_senha.py`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** os importados do Kommo/DataCrazy entram com a mesma senha padrão e não conseguiam trocá-la sozinhos.
+- **Tela `/trocar-senha` (GET/POST, `routes/auth.trocar_senha`):**
+  - **Campos:** senha atual + nova senha duas vezes.
+  - **Regras (`troca_senha.validar_nova_senha`):** 8 a 128 caracteres; a confirmação precisa conferir; a nova precisa ser diferente da atual.
+  - **Gravação:** scrypt (`gerar_hash`) e flag desligada, na mesma `UPDATE`. A senha atual também confere com o hash SHA-256 antigo.
+  - **Acesso:** qualquer usuário logado, pelo link "Trocar minha senha" no card Sessão do Meu Perfil. O login de emergência (`user_id` 0) não tem senha no banco e recebe uma mensagem em vez da troca.
+  - **Visual:** a tela estende `login.html`, que ganhou os blocos `titulo` e `conteudo`. O HTML do login não mudou.
+- **Flag `app_users.precisa_trocar_senha` (BOOLEAN NOT NULL DEFAULT FALSE):**
+  - **Criação:** feita no boot por `troca_senha.garantir_coluna` (`ALTER … ADD COLUMN IF NOT EXISTS`). Se falhar, só avisa no log.
+  - **Login:** copia a flag para a sessão. Sem a coluna, lê FALSE e o login segue.
+  - **Bloqueio (`troca_senha.bloqueio`, chamado no `require_auth`):** com a flag ligada, página redireciona para `/trocar-senha` e `/api/*` recebe 403 `{"redirect": "/trocar-senha"}` (redirect quebraria os `fetch`). Ficam livres `/trocar-senha`, `/logout`, `/login`, `/health` e `/static/`. `DEV_SKIP_AUTH` não é afetado.
+- **Decisão do Raphael (26/11): nada liga a flag automaticamente.**
+  - **Fora deste PR:** a importação, o login com a senha padrão e a senha definida pelo admin na tela de Usuários.
+  - **Para obrigar alguém a trocar:** `UPDATE app_users SET precisa_trocar_senha = TRUE WHERE id = <id>;`, que vale no próximo login da pessoa. Hashes scrypt têm sal, então achar quem ainda usa a senha padrão pede conferência em Python, um a um, e não um `UPDATE` em SQL puro.
+- **"Entrar como" (decisão do Raphael, 26/11):**
+  - **Por quê:** o admin precisa continuar com acesso às contas dos consultores, mesmo depois que eles troquem a senha. O painel só tem dados da empresa. **Não guardar nem pedir a senha de ninguém para isso.**
+  - **Entrar:** `POST /api/users/<id>/entrar-como`, só com `role = admin`, pelo botão "Entrar como" (ícone `login`) na tela de Usuários. Troca o usuário, o login e o papel da sessão, e o painel passa a mostrar o menu e as permissões da pessoa. O admin fica guardado em `session["admin_original"]` (só o primeiro, se encadear) e a flag de troca é desligada nessa sessão.
+  - **Voltar:** `POST /voltar-admin`, pela faixa amarela no topo (`partials/_entrar_como.html`, incluída no `index.html`). A rota fica livre mesmo com a flag ligada. `/logout` encerra tudo.
+  - **Registro:** cada entrada e cada volta vão para o log do app (`ENTRAR_COMO: admin X (id) entrou como Y (id)` / `voltou`). Não há tabela de auditoria.
+  - **Não mexe:** senha, banco e permissões gravadas.
+- **Não muda:** a senha padrão das importações, a edição e a redefinição de senha pelo admin, o login de emergência, `_db_auth` e as permissões.
+- **Testes:** `tests/test_troca_senha.py` (34) e `tests/test_entrar_como.py` (17), com banco simulado.
+
 ### 2026-11-26 — Modernização, Fase 2: testes no CI antes do build
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** o pytest roda antes do build da imagem. Se algum teste falhar, não há build nem deploy. Os testes também rodam em PR para a `master`.

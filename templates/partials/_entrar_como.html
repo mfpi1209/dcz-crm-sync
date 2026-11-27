@@ -1,0 +1,13 @@
+{# Faixa do "Entrar como" (26/11): só aparece quando o admin está vendo o painel como outro usuário. #}
+{% if session.get('admin_original') %}
+<div role="status"
+     style="position: fixed; top: 0; left: 0; right: 0; z-index: 9999; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; padding: 6px 16px; background: #f59e0b; color: #1f2937; font-size: 13px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.25);">
+    <span>Você está vendo o painel como <strong>{{ session.get('username', '') }}</strong></span>
+    <form action="/voltar-admin" method="POST" style="margin: 0;">
+        <button type="submit"
+                style="background: #1f2937; color: #fff; border: 0; border-radius: 8px; padding: 4px 12px; font-size: 12px; font-weight: 700; cursor: pointer;">
+            Voltar para o admin ({{ session.get('admin_original', {}).get('username', '') }})
+        </button>
+    </form>
+</div>
+{% endif %}
