@@ -442,3 +442,11 @@ def test_imagem_escolhe_site_ou_worker_pelo_ambiente():
     docker = (RAIZ / "Dockerfile").read_text(encoding="utf-8")
     assert 'CMD ["./iniciar.sh"]' in docker
     assert "chmod +x iniciar.sh" in docker
+
+
+def test_worker_responde_saude_antes_de_importar_o_app():
+    """EasyPanel parava o worker sem porta aberta (27/11): /health na 5001."""
+    texto = (RAIZ / "worker.py").read_text(encoding="utf-8")
+    assert 'os.getenv("PORT", "5001")' in texto
+    assert texto.index("_servidor_saude = _subir_saude()") < texto.index("import app  #")
+    assert "def do_GET" in texto
