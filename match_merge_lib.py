@@ -2976,6 +2976,18 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
 
                 kconn_mat.close()
 
+            # Aluno com 2 matrículas no mesmo dia (2 cursos, 2 negócios): cada
+            # RGM tem de ir para o seu negócio. Sem isso as duas caíam no mesmo
+            # (desempate pela ordem de um set) e a última sobrescrevia a outra
+            # (caso Giulia Bonfante, 27/11/2026).
+            rgm_do_lead: dict = {}
+            for _rk, _lids in idx_rgm.items():
+                _rd = re.sub(r"[^0-9]", "", _rk or "")
+                if _rd:
+                    for _l in _lids:
+                        rgm_do_lead[_l] = _rd
+            rgm_dado_no_run: dict = {}  # lead → RGM já mandado nesta execução
+
             for row in mat_d1:
                 nome, cpf, rgm, email, fone_cel = row[0], row[1], row[2], row[3], row[4]
                 curso, polo, sit, dt_mat, tipo_mat, nivel = row[5], row[6], row[7], row[8], row[9], row[10]
@@ -3236,8 +3248,18 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                             n_dup_perdido += 1
                     continue
 
+                # Escolha do negócio: 1º o que já tem ESTE RGM; depois a fase
+                # mais quente. Negócio que já recebeu outro RGM nesta execução,
+                # ou que tem o RGM de outra matrícula ativa da mesma pessoa,
+                # é de outro curso e fica de fora. Desempate fixo pelo id.
+                rgm_d = re.sub(r"[^0-9]", "", rgm_clean)
+                _ativos_cpf = (
+                    cpf_rgms_ativos.get(cpf_clean, set())
+                    if _cpf_valido(cpf_clean) else set()
+                )
                 best_lid = None
-                best_sort = -1
+                best_key = None
+                n_outro_curso = 0
                 for lid in candidates:
                     pipe_info = lead_pipe.get(lid)
                     if not pipe_info:
@@ -3247,12 +3269,34 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                         continue
                     if status == 142:
                         continue
+                    _dado = rgm_dado_no_run.get(lid)
+                    _proprio = rgm_do_lead.get(lid, "")
+                    if rgm_d and (
+                        (_dado and _dado != rgm_d)
+                        or (_proprio and _proprio != rgm_d and _proprio in _ativos_cpf)
+                    ):
+                        n_outro_curso += 1
+                        continue
                     effective_sort = 0 if status in _STATUS_FRIOS else st_sort
-                    if best_lid is None or effective_sort > best_sort:
+                    key = (
+                        1 if rgm_d and _proprio == rgm_d else 0,
+                        effective_sort or 0,
+                        str(lid),
+                    )
+                    if best_key is None or key > best_key:
                         best_lid = lid
-                        best_sort = effective_sort
+                        best_key = key
+
+                if best_lid is None and n_outro_curso:
+                    log.warning(
+                        "MATRICULADO D-1 sem negócio livre: CPF %s RGM %s (%s) — "
+                        "os negócios abertos já são de outro curso",
+                        cpf_clean, rgm_clean, curso,
+                    )
 
                 if best_lid is not None:
+                    if rgm_d:
+                        rgm_dado_no_run[best_lid] = rgm_d
                     if best_lid in acoes_lead_ids:
                         acoes = [a for a in acoes if not (
                             a.get("lead_id") == best_lid
@@ -3566,16 +3610,25 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                     FROM mm_inscritos
                     WHERE cpf = ANY(%s)
                 """, (sorted(mat_cpfs),))
-                insc_by_cpf: dict[str, dict] = {}
+                # Todas as inscrições do CPF: com 2 cursos, a matrícula pega a
+                # inscrição do MESMO curso (antes ia a primeira do CPF).
+                insc_list_by_cpf: dict[str, list] = {}
                 for r in dcur_enr.fetchall():
-                    cpf_k = r[0]
-                    if cpf_k not in insc_by_cpf:
-                        insc_by_cpf[cpf_k] = {
-                            "nome": r[1], "email": r[2], "telefone": r[3],
-                            "inscricao": r[4], "modalidade": r[5],
-                            "curso_raw": r[6], "polo_normalizado": r[7],
-                            "status": r[8], "data_inscr": r[9],
-                        }
+                    insc_list_by_cpf.setdefault(r[0], []).append({
+                        "nome": r[1], "email": r[2], "telefone": r[3],
+                        "inscricao": r[4], "modalidade": r[5],
+                        "curso_raw": r[6], "polo_normalizado": r[7],
+                        "status": r[8], "data_inscr": r[9],
+                    })
+
+                def _insc_do_curso(cpf_k, curso):
+                    lst = insc_list_by_cpf.get(cpf_k) or []
+                    if len(lst) <= 1 or not curso:
+                        return lst[0] if lst else None
+                    return max(lst, key=lambda i: (
+                        _similaridade_curso(limpar_curso_display(i.get("curso_raw") or ""), curso),
+                        (i.get("status") or "").upper() == "MATRICULADO",
+                    ))
 
                 # Data nascimento e email acadêmico vêm de mm_matriculados
                 dcur_enr.execute("""
@@ -3604,7 +3657,7 @@ def gerar_acoes(inscritos_match, matriculados_match=None):
                 if a["acao"] != "MATRICULADO":
                     continue
                 cpf_k = a.get("cpf", "")
-                insc = insc_by_cpf.get(cpf_k)
+                insc = _insc_do_curso(cpf_k, limpar_curso_display(a.get("curso_siaa", "")))
 
                 # Polo: prioridade mm_matriculados (polo_aulas), depois mm_inscritos
                 polo_mat = a.get("polo", "")

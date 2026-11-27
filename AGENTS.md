@@ -4,6 +4,15 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Upload Comercial: 2 matrículas no mesmo dia, cada RGM no seu negócio
+
+Caso Giulia Bonfante (#117659 Marketing / #76837 Publicidade): no MATRICULADO D-1 (`gerar_acoes`, `match_merge_lib.py`) os dois negócios abertos do CPF empatavam na fase e o escolhido saía da ordem de um `set` (muda a cada processo). As duas matrículas iam para o mesmo negócio, a segunda sobrescrevia RGM e curso da primeira, e o outro ficava em Aceite.
+
+- A escolha do negócio agora segue esta ordem: primeiro o que já tem **o mesmo RGM**, depois a fase mais quente, com desempate fixo pelo id.
+- Fica de fora o negócio que já recebeu outro RGM na mesma execução, ou que tem o RGM de outra matrícula ativa do mesmo CPF.
+- Se não sobrar negócio livre, nada é gravado e sai um aviso no log (antes, sobrescrevia).
+- No enriquecimento, a matrícula pega a inscrição **do mesmo curso** (`_insc_do_curso`), não a primeira do CPF.
+
 ### 2026-11-27 — Modernização, Fase 3: jobs agendados fora do site (worker) e trava no Postgres
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** tirar os jobs do APScheduler de dentro do Gunicorn e garantir que nenhum rode em dobro. É o pré-requisito para subir mais workers do site.
