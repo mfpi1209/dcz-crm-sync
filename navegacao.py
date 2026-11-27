@@ -196,6 +196,10 @@ class Menu:
             "pagina_inicial": self.pagina_inicial,
             "paginas": self.paginas_permitidas(),
             "secoes": self.secoes(),
+            # Telas visíveis de cada grupo, na ordem do menu (o front não repete GRUPOS).
+            "grupos": {
+                nome: [p for p in paginas if self.pode(p)] for nome, paginas in GRUPOS.items()
+            },
         }
 
 

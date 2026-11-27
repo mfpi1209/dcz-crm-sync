@@ -10,3 +10,5 @@ _*.txt
 venv
 static/**/*.gz
 static/**/*.br
+frontend/node_modules
+frontend/dist

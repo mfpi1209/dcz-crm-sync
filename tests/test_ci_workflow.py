@@ -53,7 +53,7 @@ def test_job_do_pool_usa_so_postgres_descartavel():
 
 def test_build_e_deploy_dependem_dos_testes_e_nao_rodam_em_pr():
     job = _job("build-and-deploy")
-    assert re.search(r"^    needs: \[testes, testes-pg\]$", job, re.M)
+    assert re.search(r"^    needs: \[testes, testes-pg, front\]$", job, re.M)
     assert "if: github.event_name != 'pull_request'" in job
     # build, push e webhook continuam dentro do job que depende dos testes
     assert "docker/build-push-action" in job
@@ -77,3 +77,17 @@ def test_deploy_tambem_atualiza_o_worker_quando_configurado():
     sem_segredo = passo.split("\n          fi\n", 1)[0]
     assert "exit 0" in sem_segredo   # sem segredo: só aviso, não falha o deploy
     assert "secrets.PAINEL_WORKER_DEPLOY_HOOK" not in _job("testes")
+
+
+def test_front_novo_testado_antes_do_deploy():
+    # Fase 4 (27/11): tipos, testes e build do frontend/ no CI; o deploy depende deles.
+    job = _job("front")
+    assert "npm ci" in job and "npm run typecheck" in job and "npm test" in job and "npm run build" in job
+    assert "secrets." not in job
+
+
+def test_imagem_montada_no_pr_sem_publicar():
+    job = _job("imagem-pr")
+    assert "if: github.event_name == 'pull_request'" in job
+    assert "docker build" in job
+    assert "push" not in job and "secrets." not in job

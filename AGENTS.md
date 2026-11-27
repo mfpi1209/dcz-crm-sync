@@ -4,6 +4,46 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Modernização, Fase 4, etapa 2: esqueleto do front novo (React + TypeScript) em `/app/`
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** segunda etapa do plano de separar o front do back (ver a entrada da etapa 1, logo abaixo).
+- **Onde fica:** `frontend/`, com Vite 5, React 18, TypeScript, React Router 6 (modos v7 ligados), TanStack Query 5 e Tailwind 3. As versões são exatas no `package.json`, com `package-lock.json`.
+- **Como é servido (`routes/front_novo.py`):** o próprio Flask serve o build em `/app/`, no mesmo endereço do painel. Login, cookie de sessão e permissões são os mesmos, e não há CORS.
+  - `/app/assets/*`: cache de 1 ano (nome com hash).
+  - Qualquer outro `/app/...`: o `index.html`, sem cache, porque as rotas são do React Router.
+  - Sem login: vai para o login, inclusive o JS e o CSS.
+  - Sem build: 503 explicando.
+  - As rotas `/app` estão em `permissoes.ROTAS_SEM_PAGINA` como casca, igual ao `/`. Os dados continuam vindo das mesmas `/api/` com a mesma permissão.
+- **Build:**
+  - **Dockerfile:** uma etapa `node:22-slim` faz `npm ci` e `npm run build`; a imagem final continua `python:3.14-slim` e só copia o `frontend/dist`. Node não vai para produção.
+  - **CI:** o job `front` roda tipos, testes (vitest) e build, e o deploy depende dele, como do pytest. No PR, o job `imagem-pr` monta a imagem inteira sem publicar.
+  - **Versão do Node:** o teste exige a mesma no CI e no Dockerfile.
+  - `frontend/node_modules` e `frontend/dist` ficam fora do Git.
+- **Menu (`frontend/src/menu.ts`):**
+  - **Quem vê o quê:** vem do `/api/me` (bloco `nav`, que agora inclui `grupos`, com as telas de cada grupo na ordem). O front só decide a ordem dos grupos, o nome e o destino.
+  - **Destino:** tela registrada em `TELAS_NOVAS` (`frontend/src/telas.tsx`) abre em `/app/<tela>`; as demais abrem no painel atual (`/#<tela>`).
+  - **Grupo escondido:** as telas dele também somem do menu, como no menu atual.
+  - **Nomes:** `frontend/src/titulos.ts` é cópia de `PAGE_TITLES` (`static/js/utils.js`), e um teste exige que os dois sejam iguais.
+- **Visual:** os mesmos tokens de cor e as mesmas fontes do `_head.html` (`frontend/src/estilo.css`, `tailwind.config.js`). O tema claro/escuro usa a mesma chave `eduit-theme`, então segue o que a pessoa escolheu no painel.
+- **Como migrar uma tela (etapas 3 e 4):**
+  1. criar o componente em `frontend/src/paginas/`;
+  2. registrar em `TELAS_NOVAS` com o nome da página (`helpers.ALL_PAGES`);
+  3. a rota só abre para quem tem a página no `/api/me`.
+  O painel antigo continua no ar até a tela nova ser aprovada.
+- **Dev local:**
+  - `npm run dev` em `frontend/` sobe o Vite na 5173, com proxy de `/api`, `/login` e `/static` para o Flask na 5001.
+  - **Windows:** a pasta do projeto dentro do Claude-Data passa do limite de 260 caracteres de caminho, e o `npm install` falha no `esbuild`. Para testar, rodar o npm numa pasta curta (ex.: `%TEMP%r`) e trazer `package-lock.json` e `dist/` de volta. CI e Docker rodam em Linux e não têm o problema.
+- **Não muda:** o painel atual em `/`, os templates, o `static/` e as APIs. Ninguém tem link para `/app/` ainda.
+- **Testes:**
+  - `frontend/src/*.test.ts(x)`: 14 testes.
+    - **Cliente da API:** 401 vai para o login, 403 vira aviso de permissão, erro sem JSON, cabeçalhos.
+    - **Menu:** consultor comercial, Minha Performance no Comercial, grupo escondido, subpermissão, tela migrada.
+    - **App:** menu pelo `/api/me`, tela inexistente, falha do `/api/me`.
+  - `tests/test_front_novo.py`:
+    - **Rotas do Flask:** index sem cache, rotas do React, assets imutáveis, 404, não sai da pasta, sem login, sem build.
+    - **Menu:** nomes iguais ao painel atual, toda tela do menu com nome, grupos do front que existem no servidor.
+    - **Build:** Dockerfile e versão do Node.
+
 ### 2026-11-27 — Modernização, Fase 4 (separar front e back), etapa 1: regra do menu no servidor e bloco `nav` no `/api/me`
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** separar o front do back sem reescrever. O plano aprovado tem cinco etapas:

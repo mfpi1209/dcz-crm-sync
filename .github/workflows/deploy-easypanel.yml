@@ -41,6 +41,61 @@ jobs:
       - name: pytest
         run: python -m pytest tests -q -rs
 
+  # Fase 4 (27/11): front novo (frontend/, React + TypeScript). Tipos, testes e
+  # build precisam passar; senão não há imagem nem deploy, como no pytest.
+  front:
+    name: Front novo (tipos, testes e build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22 (mesma versão do Dockerfile)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Tipos
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  # Fase 4 (27/11): no PR, monta a imagem inteira (front + Python) sem publicar.
+  # Um erro no Dockerfile aparece antes do merge, não na hora do deploy.
+  imagem-pr:
+    name: Imagem monta (sem publicar)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: docker build (só local)
+        run: docker build -t painel-pr:teste .
+
+      - name: Front dentro da imagem
+        run: docker run --rm --entrypoint sh painel-pr:teste -c 'test -f frontend/dist/index.html && ls frontend/dist/assets'
+
   # Fase 2 (27/11): o pool de conexões (db_pool.py) testado num Postgres
   # descartável, criado só para este job. Nenhum banco real, nenhum segredo:
   # a senha abaixo vale só para o container que morre no fim do job.
@@ -83,7 +138,7 @@ jobs:
 
   build-and-deploy:
     name: Build, push GHCR e deploy EasyPanel
-    needs: [testes, testes-pg]
+    needs: [testes, testes-pg, front]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
