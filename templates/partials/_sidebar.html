@@ -13,15 +13,15 @@
 
         <!-- Nav -->
         <nav class="flex-1 px-3 py-4 overflow-y-auto" style="min-height:0">
-            {% set _show_acad = nav_can('ativacoes') or nav_can('motor_ativacoes') or nav_can('distribuicao') or nav_can('intelligence') or nav_can('inadimplencia') or nav_can('feedback') or nav_can('macro_email') or nav_can('meus_atendimentos') or nav_can('rematricula') or nav_can('disparador_whatsapp') or nav_can('academico_interacoes') or nav_is_admin %}
-            {% set _show_ferramentas = nav_can('comparar_cursos') or nav_can('recomendacao_cursos') or nav_can('localizacao_polos') or nav_can('info_cursos') or nav_can('leads_inscricao') or nav_can('cadastro_leads') or nav_can('subir_blog') %}
-            {% set _show_minha_perf_in_comercial = (not nav_is_comercial) and nav_can('minha_performance') %}
-            {% set _show_comercial = nav_can('dist_consultor') or nav_can('comercial_rgm') or nav_can('bwipo_comercial') or nav_can('dist_comercial') or nav_can('inscricao') or nav_can('inscricao_automatica') or nav_can('recadastros') or nav_can('comercial_dashboard') or nav_can('auditoria_comercial') or nav_can('atualizar_preco') or nav_can('precos_bwipo') or nav_can('leads_parados') or _show_minha_perf_in_comercial or nav_can('repasse') or nav_can('captacao') or nav_can('clicks') or nav_can('leads_promotores') or nav_can('premiacao_admin') %}
-            {% set _show_voc = nav_can('vocacional') %}
-            {% set _show_meta = nav_can('meta-campaigns') %}
-            {% set _show_ti = nav_is_admin and (nav_can('ia_comercial') or nav_can('page_views') or nav_can('match_inadimplentes') or nav_can('materias_alunos') or nav_can('tracker_tarefas') or nav_can('conexao_siaa')) %}
-            {% set _show_chamados = nav_can('solicitacoes_ti') or nav_can('meus_chamados_ti') or nav_can('chamados_ti') %}
-            {% set _show_sistema = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('bwipo_sync') or nav_can('match_merge') or nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
+            {% set _show_acad = nav_secoes.academico %}
+            {% set _show_ferramentas = nav_secoes.ferramentas %}
+            {% set _show_minha_perf_in_comercial = nav_secoes.minha_perf_no_comercial %}
+            {% set _show_comercial = nav_secoes.comercial %}
+            {% set _show_voc = nav_secoes.vocacional %}
+            {% set _show_meta = nav_secoes.meta %}
+            {% set _show_ti = nav_secoes.ti %}
+            {% set _show_chamados = nav_secoes.chamados %}
+            {% set _show_sistema = nav_secoes.sistema %}
             <div class="space-y-1">
                 {% if (nav_is_comercial or nav_is_suporte_comercial) and nav_can('minha_performance') %}
                 <a href="#minha_performance" onclick="navigate('minha_performance')" class="sidebar-link active" data-page="minha_performance">
@@ -472,7 +472,7 @@
             </div>
             {% endif %}
 
-            {% set _show_premiacoes_internas = nav_can('premiacoes_internas') or nav_can('aprovacao_premiacoes') %}
+            {% set _show_premiacoes_internas = nav_secoes.premiacoes_internas %}
             {% if _show_premiacoes_internas %}
             <!-- PREMIAÇÕES INTERNAS -->
             <div class="sidebar-group" data-group="premiacoes_internas">
@@ -511,8 +511,8 @@
                     <span class="material-symbols-outlined text-sm sidebar-group-chevron">expand_more</span>
                 </button>
                 <div class="sidebar-group-items">
-                    {% set _show_crm = nav_can('pipeline') or nav_can('update') or nav_can('ajustes_matricula') or nav_can('kommo_sync') or nav_can('bwipo_sync') or nav_can('match_merge') %}
-                    {% set _show_geral = nav_can('config') or nav_can('schedule') or nav_can('kommo_dispatcher') or nav_can('logs') %}
+                    {% set _show_crm = nav_secoes.sistema_crm %}
+                    {% set _show_geral = nav_secoes.sistema_geral %}
                     {% if _show_crm %}
                     <p class="px-3 pt-3 pb-1 text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">CRM</p>
                     {% if nav_can('pipeline') %}
