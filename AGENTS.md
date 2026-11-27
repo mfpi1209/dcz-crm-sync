@@ -48,7 +48,7 @@ Caso Giulia Bonfante (#117659 Marketing / #76837 Publicidade): no MATRICULADO D-
 - **Ressalva conhecida:** `aceite_reconcile`/`responsible_history_daily` usam o `_kommo_api_bg_lock` em memória, que deixa de serializar com as threads de aquecimento do site. Hoje os dois estão desligados (`KOMMO_API_JOBS=0`).
 - **Ligar em produção (EasyPanel), nesta ordem:**
   1. Site com `AGENDADOR=site`.
-  2. Serviço novo, com a mesma imagem e as mesmas variáveis, comando `python worker.py`, sem domínio e sem porta.
+  2. Serviço novo, com a mesma imagem (Fonte: Imagem Docker com o mesmo usuário/token do GHCR do painel) e as mesmas variáveis, mais `AGENDADOR=worker`, sem domínio. O EasyPanel desta conta não deixa trocar o comando pela tela, por isso o `iniciar.sh` (CMD da imagem) roda `python worker.py` quando `AGENDADOR=worker` e o Gunicorn nos outros casos.
   - **Por que nessa ordem:** com o site em `tudo` e o worker ligado, cada job rodaria nos dois processos (a trava só impede que seja ao mesmo tempo).
   - **Horário:** evitar fazer isso perto das 08:00 (`engagement_daily`).
   - **Conferir:** o log do worker mostra "worker no ar com N jobs".
