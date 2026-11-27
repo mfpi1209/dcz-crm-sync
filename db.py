@@ -71,6 +71,20 @@ def get_me_conn():
     return psycopg2.connect(**ME_DSN)
 
 
+# Banco google_ads (matriculas_google: matrícula SIAA com gclid). Mesmo host/credencial.
+GOOGLE_ADS_DSN = dict(
+    host=os.getenv("DB_HOST", "localhost"),
+    port=os.getenv("DB_PORT", "5432"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASS"),
+    dbname=os.getenv("GOOGLE_ADS_DB_NAME", "google_ads"),
+)
+
+
+def get_google_ads_conn():
+    return psycopg2.connect(connect_timeout=10, **GOOGLE_ADS_DSN)
+
+
 # ---------------------------------------------------------------------------
 # Ensure tables
 # ---------------------------------------------------------------------------
@@ -1726,6 +1740,33 @@ def _ensure_bwipo_sync_tables():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_cpf ON bwipo_deals (cpf_norm) WHERE cpf_norm IS NOT NULL AND NOT is_deleted")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_updated ON bwipo_deals (updated_at)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_depara_deal ON bwipo_kommo_depara (bwipo_deal_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bwipo_deals_created ON bwipo_deals (created_at) WHERE NOT is_deleted")
+            # Origem de anúncio do contato (só vem no GET /api/contacts/{id}). Job em services/bwipo_campanhas.py.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS bwipo_contact_ads (
+                    contact_id      TEXT PRIMARY KEY,
+                    utm_source      TEXT,
+                    utm_medium      TEXT,
+                    utm_campaign    TEXT,
+                    utm_content     TEXT,
+                    utm_term        TEXT,
+                    ctwa_clid       TEXT,
+                    ad_source_id    TEXT,
+                    ad_source_type  TEXT,
+                    ad_headline     TEXT,
+                    resolve_status  TEXT,
+                    ad_campaign_name TEXT,
+                    ad_adset_name   TEXT,
+                    ad_name         TEXT,
+                    gclid           TEXT,
+                    fbclid          TEXT,
+                    referrer        TEXT,
+                    contact_source  TEXT,
+                    erro            TEXT,
+                    tentativas      INTEGER NOT NULL DEFAULT 0,
+                    fetched_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS bwipo_kommo_user_depara (
                     bwipo_user_id  TEXT PRIMARY KEY REFERENCES bwipo_users(id) ON DELETE CASCADE,

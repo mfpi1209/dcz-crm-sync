@@ -4,6 +4,67 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-26 — Performance de Campanhas: Meta e Sem Campanha passam a vir do Bwipo (01/10/2026 em diante)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** a tela Meta Ads · Performance mostrava "Status: ERROR" e zero. O Raphael pediu para ler Meta e Sem Campanha do Bwipo, com backfill desde 01/10.
+- **Diagnóstico (26/11):**
+  - **Supabase parado:** `campanhas_meta` (lida pelo n8n `count_leads_meta`) e `sem_campanha` param em 01/10/2026. Eram alimentadas pelo Kommo.
+  - **Erro na tela:** o n8n responde 200 com corpo vazio e a rota quebrava no `response.json()`.
+  - **Google segue vivo:** `campanhas_google` continua recebendo leads dos formulários do site.
+- **Onde está a origem no Bwipo:** no **contato**, e só em `GET /api/contacts/{id}`. A listagem e o contato embutido no negócio não trazem esses campos. São eles: `adUtmSource/Medium/Campaign/Content/Term`, `adCtwaClid`, `adSourceId/Type`, `adHeadline`, `adResolved*` e também `gclid`, `fbclid`, `referrer`. O `adUtmCampaign` segue o mesmo padrão de nome da antiga `campanhas_meta` (ex.: `cs.grad.whats.0826.terapia-ocupacional`). O `bwipo_contacts`/`bwipo_deals.origem` não serve: `origem` está vazia e o `source` "Facebook" só existe nos importados do Kommo em 22/09.
+- **Coleta (`services/bwipo_campanhas.py`):**
+  - **Tabela:** `bwipo_contact_ads`, uma linha por contato. É criada em `db._ensure_bwipo_sync_tables`, junto com o índice `idx_bwipo_deals_created`.
+  - **Job:** `bwipo_contact_ads` roda a cada 5 min (primeira vez 60 s após o boot), com até 240 s e 800 contatos por rodada. `BWIPO_CONTACT_ADS_JOB=0` desliga.
+  - **Fila:** contatos de negócio do Pipeline Principal criado desde 01/10, do mais novo para o mais antigo. O dia de hoje enche primeiro e o backfill vem atrás (~0,65 s por contato, então ~46 mil contatos levam umas 11 h).
+  - **Recoleta:** erro (até 5 tentativas, 30 min de intervalo), anúncio ainda sem `adResolveStatus=ok` (depois de 1 h) e negócio novo criado depois da coleta. A origem vale por contato, então é o último toque.
+  - **Token:** só o comercial (`BWIPO_COMERCIAL_API_TOKEN`). Em 401/403 o lote para.
+- **Classificação (`origem()`):**
+  - **Meta:** `adCtwaClid` ou `adSourceType=ad`, utm_source facebook/instagram/fb/ig/meta*, ou só `fbclid`.
+  - **Google:** `gclid` ou utm_source com "google". Fica fora desta parte; o Google continua no `services/google_ads_insights.py`.
+  - **Outra:** qualquer outra UTM. Não entra em lugar nenhum.
+  - **Sem Campanha:** nenhum sinal.
+  - **Pendente:** contato ainda não coletado. Não conta.
+- **Leitura:**
+  - **Lead:** um contato com negócio no Principal criado no período (dia em BRT), contado **por safra**: aberto/ganho/perdido pelo `status` do negócio mais recente do período (WON/LOST), como no Google.
+  - **Matrículas Meta:** RGMs da `bwipo_painel_base` com `data_matricula` no período, cujo negócio é de contato Meta.
+  - **Cache:** 3 min por período. O mês inteiro leva cerca de 2 s.
+- **Corte:** `/api/meta/campaigns` e `/api/sem-campanha/leads` juntam as duas fontes. Até 30/09 continuam no n8n/Supabase; de 01/10 em diante vêm do Bwipo (`periodo_legado` / `periodo_bwipo`). Se uma das partes falha, a outra continua. A resposta traz `pendentes`, e a tela mostra "coletando origem de N contatos".
+- **Front:** o pie "Total" agora soma aberto + ganho + perdido também para Meta e Sem Campanha (safra).
+- **Não muda:** o Google (Supabase + `google_ads`), as permissões das rotas e o `/api/meta/webhook`.
+- **Testes:** `tests/test_bwipo_campanhas.py` (classificação e corte).
+
+### 2026-11-26 — Permissão no servidor nas rotas que faltavam (mapa central em `permissoes.py`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** fechar o que a Fase 1 deixou para depois: as rotas sem checagem (dashboard, engagement, inadimplência, crm, logs etc.). A lista foi aprovada pelo Raphael em 26/11, antes de aplicar.
+- **Levantamento (26/11):**
+  - **Total:** das 411 rotas, 180 não checavam nada. Não entram nessa conta as que já usam `exige_pagina`, checagem de papel ou um auxiliar com 403 (`_gate`, `_allowed`), nem as 38 de preço protegidas no `app.py`.
+  - **Origem das páginas:** cada rota recebeu as telas que a chamam (grep em `static/js` e `templates`), para ninguém perder o que já usa pela tela.
+- **Como aplica:**
+  - **Mapa central:** `permissoes.PAGINAS_POR_ENDPOINT` (endpoint → páginas) é aplicado por `aplicar_mapa(app)` no `app.py`, depois de registrar todas as rotas. Cada view é embrulhada com `exige_pagina` e devolve 403 em JSON sem a página. Admin e `user_id` 0 passam.
+  - **Por que um mapa e não decorators:** decorators espalhados mexeriam em 26 arquivos.
+  - **Endpoint inexistente:** só avisa no log.
+- **O que ficou:**
+  - **170 endpoints com página.** Exemplos:
+    - `/api/dashboard*` e `/api/lista-alunos/*` → `dashboard` (+ `rematricula`);
+    - `/api/engagement/*`, `/api/comm/*` e `/api/snapshots/*` → `intelligence`;
+    - `/api/inadimplencia/*` → `inadimplencia`;
+    - `/api/sync*` → `sync`;
+    - `/api/comercial-rgm/*` → `comercial_rgm`, `bwipo_comercial` (`data` e `metas` também `minha_performance`);
+    - `/api/bwipo/painel*` → `bwipo_comercial`;
+    - `/api/logs*` → `logs`, `config`.
+    - Lista completa no próprio mapa.
+  - **14 só admin:** diagnóstico e manutenção que nenhuma tela chama (`*/connection-test`, `_diag/kommo*`, `debug/address`, `comercial-rgm/diagnostics|cache/clear|populate-from-matriculados`, `kommo/reconcile-aceites`, `kommo/sync-responsible-history`, `kommo/merge/session-status`, `comm/dispatch`, `comm/callback`, `meta/webhook`). Os três últimos já exigiam login, então nenhum sistema externo os alcançava.
+  - **Livres de propósito (`ROTAS_SEM_PAGINA`):** `/health`, `/login`, `/logout`, `/` (o menu já filtra), `/api/track-page-view` e `/api/avisos*` (popup para todos). O webhook do Motor continua com o HMAC.
+  - **Do próprio usuário (`ROTAS_DO_PROPRIO_USUARIO`):** `minhas-matriculas` (POST) e `solicitacoes_ti/meus`. A rota já filtra pelo `user_id` da sessão; exigir página tiraria o acesso do dono.
+- **Regra para rota nova:** toda rota `/api/` precisa de `@exige_pagina(...)` na própria rota ou de uma linha no mapa. O `tests/test_permissao_rotas.py` lê o código e falha se aparecer rota sem nenhum dos dois, e fora das listas de livres e do próprio usuário.
+- **`dashboard` segue a regra do menu, não só a tabela (`permissoes._dashboard_pelo_menu`):**
+  - **O que o banco mostrou (consulta só de leitura, 26/11, autorizada pelo Raphael):** só 7 de 40 usuários não admin têm `dashboard` em `user_permissions`. Um deles é a supervisora comercial id 53, que não tem.
+  - **Por que a tabela não basta:** o menu (`app.inject_nav_perms` / `nav_can`) mostra a home para quem não é comercial nem suporte comercial, sem consultar a tabela. Exigir só a tabela tiraria os dados da home de 33 pessoas.
+  - **Regra no servidor:** rota com `dashboard` passa para quem tem a página **ou** para quem não é `Comercial` nem suporte comercial (categoria ou login), como no menu.
+  - **Alcance:** a exceção vale só para `dashboard`. Supervisor sem `inadimplencia` continua barrado na inadimplência.
+- **Não muda:** as rotas que já checavam, as de preço, `exige_pagina`/`tem_alguma_pagina`, o login e o `require_auth`.
+- **Testes:** `tests/test_permissao_rotas.py` (624, inclusive a regra do menu para `dashboard`). Para cada endpoint do mapa: 403 sem a página, 200 com qualquer uma das páginas, admin passa. Também conferem que o endpoint existe no código, a amostra aprovada e a guarda de rota nova.
+
 ### 2026-11-26 — Senha: troca pelo próprio usuário e troca obrigatória (`troca_senha.py`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** os importados do Kommo/DataCrazy entram com a mesma senha padrão e não conseguiam trocá-la sozinhos.
