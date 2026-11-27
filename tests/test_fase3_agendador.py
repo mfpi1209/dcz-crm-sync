@@ -279,8 +279,9 @@ def test_vigia_vence_cache_so_quando_built_at_muda(monkeypatch):
 def test_confirmar_copia_usa_a_que_existe_e_cria_se_faltar(monkeypatch):
     from services import leads_rgm
     from routes import comercial_rgm
+    monkeypatch.setattr(leads_rgm, "REFRESH_MIN", 0)
     monkeypatch.setattr(leads_rgm, "_ultimo_ok", None)
-    monkeypatch.setattr(comercial_rgm, "_pg_kommo", lambda: _ConnV((True,)))
+    monkeypatch.setattr(comercial_rgm, "_pg_kommo", lambda: _ConnV((True, None)))
     assert leads_rgm.confirmar_copia() is True
     assert leads_rgm.pronta()
     monkeypatch.setattr(leads_rgm, "_ultimo_ok", None)
@@ -312,3 +313,120 @@ def test_pg_dois_processos_nao_rodam_o_mesmo_job(monkeypatch):
         assert pegou                          # chave de trecho é outra
     outro.close()                             # processo morreu: trava some sozinha
     assert f() is None and rodou == [1]
+
+
+
+def test_confirmar_copia_no_modo_periodico_respeita_a_idade(monkeypatch):
+    """Revisão (27/11): a cópia velha não pode ser renovada só por existir."""
+    import time as _t
+    from services import leads_rgm
+    from routes import comercial_rgm
+    monkeypatch.setattr(leads_rgm, "REFRESH_MIN", 30)
+    monkeypatch.setattr(leads_rgm, "MAX_IDADE_S", 3600)
+    # refeita há 2 h pelo worker: vencida
+    velha = f"refeita_em={_t.time() - 7200:.0f}"
+    monkeypatch.setattr(leads_rgm, "_ultimo_ok", None)
+    monkeypatch.setattr(comercial_rgm, "_pg_kommo", lambda: _ConnV((True, velha)))
+    assert leads_rgm.confirmar_copia() is False
+    assert not leads_rgm.pronta()
+    # refeita agora: vale
+    monkeypatch.setattr(comercial_rgm, "_pg_kommo", lambda: _ConnV((True, f"refeita_em={_t.time():.0f}")))
+    assert leads_rgm.confirmar_copia() is True
+    # sem comentário (cópia antiga) no modo periódico: não inventa hora
+    monkeypatch.setattr(leads_rgm, "_ultimo_ok", None)
+    monkeypatch.setattr(comercial_rgm, "_pg_kommo", lambda: _ConnV((True, None)))
+    assert leads_rgm.confirmar_copia() is False
+
+
+def test_hora_do_comentario():
+    from services.leads_rgm import _hora_do_comentario
+    assert _hora_do_comentario("refeita_em=1700000000") == 1700000000.0
+    assert _hora_do_comentario(None) is None
+    assert _hora_do_comentario("outra coisa") is None
+    assert _hora_do_comentario("refeita_em=x") is None
+
+
+import contextlib as _ctx
+
+
+def _trava_falsa(pegou):
+    @_ctx.contextmanager
+    def _t(*a, **k):
+        yield pegou
+    return _t
+
+
+def test_aplicar_turno_ocupado_volta_marcado(monkeypatch):
+    """Revisão (27/11): recusa pela trava vem com `ocupado` para o agendado tentar de novo."""
+    from routes import dist_comercial_schedule as d
+    monkeypatch.setattr(trava_jobs, "trava_global", _trava_falsa(False))
+    r = d._apply_turno("dia", origem="auto", autor="scheduler", schedule_id=1)
+    assert r["ok"] is False and r["ocupado"] is True
+
+
+def test_agendado_ocupado_nao_marca_o_dia_como_feito():
+    texto = (RAIZ / "routes" / "dist_comercial_schedule.py").read_text(encoding="utf-8")
+    ini = texto.index('origem="auto"')
+    trecho = texto[ini:ini + 900]
+    assert trecho.index('if result.get("ocupado")') < trecho.index("last_run_inicio_date")
+    assert "continue" in trecho[:trecho.index("last_run_inicio_date")]
+
+
+def test_ensure_painel_base_pega_a_trava(monkeypatch):
+    from routes import bwipo_sync as bs
+    usadas = []
+
+    @_ctx.contextmanager
+    def _t(nome, **k):
+        usadas.append(nome)
+        yield True
+    monkeypatch.setattr(trava_jobs, "trava_global", _t)
+    contagens = iter([0, 0])
+    monkeypatch.setattr(bs, "_painel_base_count", lambda: next(contagens))
+    monkeypatch.setattr(bs, "_rebuild_painel_base_locked", lambda *a, **k: True)
+    assert bs.ensure_painel_base() is True
+    assert usadas == ["painel_base_rebuild"]
+    # se o worker montou enquanto esperava, não monta de novo
+    contagens2 = iter([0, 5])
+    monkeypatch.setattr(bs, "_painel_base_count", lambda: next(contagens2))
+    monkeypatch.setattr(bs, "_rebuild_painel_base_locked", lambda *a, **k: pytest.fail("montou de novo"))
+    assert bs.ensure_painel_base() is True
+
+
+def test_montagem_forte_que_desiste_tenta_de_novo(monkeypatch):
+    from routes import bwipo_sync as bs
+    monkeypatch.setattr(trava_jobs, "trava_global", _trava_falsa(False))
+    agendados = []
+
+    class _Timer:
+        def __init__(self, s, f, kwargs=None):
+            agendados.append((s, f, kwargs))
+            self.daemon = False
+
+        def start(self):
+            pass
+    monkeypatch.setattr(bs.threading, "Timer", _Timer)
+    assert bs.rebuild_painel_base("forte") is False
+    assert agendados == [(60, bs.rebuild_painel_base, {"invalidar": "forte"})]
+    agendados.clear()
+    assert bs.rebuild_painel_base("suave") is False
+    assert agendados == []          # a suave só volta na próxima rodada do job
+
+
+def test_siaa_status_vem_do_banco_ou_da_memoria(monkeypatch):
+    import siaa_avisos
+    monkeypatch.setattr(trava_jobs, "ler_status", lambda job: {"em": "t-banco", "erro": None})
+    assert siaa_avisos.ultimo_status()["em"] == "t-banco"
+    monkeypatch.setattr(trava_jobs, "ler_status", lambda job: None)
+    monkeypatch.setitem(siaa_avisos._ULTIMO, "em", "t-mem")
+    assert siaa_avisos.ultimo_status()["em"] == "t-mem"
+
+
+def test_siaa_grava_status_mesmo_sem_dados(monkeypatch):
+    import siaa_avisos
+    gravados = []
+    monkeypatch.setattr(siaa_avisos, "ativo", lambda: True)
+    monkeypatch.setattr(siaa_avisos, "_chamar_alertas", lambda: (None, "fora do ar"))
+    monkeypatch.setattr(trava_jobs, "gravar_status", lambda job, em, erro: gravados.append((job, erro)))
+    siaa_avisos.executar_job()
+    assert gravados == [("siaa_avisos_incidentes", "fora do ar")]

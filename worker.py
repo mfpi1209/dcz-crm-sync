@@ -37,5 +37,7 @@ log.info("ficam no site: %s", ", ".join(sorted(set(app.scheduler.ignorados))) or
 while not _parar.wait(60):
     pass
 
-app.scheduler.shutdown(wait=True)
+# Sem esperar os jobs em andamento: o Docker mata o processo ~10 s depois do SIGTERM.
+# A trava some com a sessão e o próximo worker retoma na rodada seguinte.
+app.scheduler.shutdown(wait=False)
 log.info("worker encerrado")

@@ -128,3 +128,56 @@ def trava_global(nome: str, esperar: bool = True, espera_max_s: int = 300):
             conn.close()          # fechar a sessão solta a trava
         except Exception:
             pass
+
+
+# ── Última execução no banco ────────────────────────────────────────────────
+# Com o job no worker, a memória do site não sabe quando ele rodou. Quem precisa
+# mostrar isso na tela grava aqui e a rota lê daqui (ex.: Conexão SIAA).
+
+_SQL_STATUS = """
+CREATE TABLE IF NOT EXISTS painel_job_status (
+    job_id TEXT PRIMARY KEY,
+    em TIMESTAMPTZ NOT NULL,
+    erro TEXT
+)
+"""
+
+
+def gravar_status(job_id: str, em, erro: str | None) -> None:
+    """Upsert da última execução. Falha só vira aviso no log."""
+    try:
+        from db import get_conn
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(_SQL_STATUS)
+                cur.execute(
+                    """INSERT INTO painel_job_status (job_id, em, erro) VALUES (%s, %s, %s)
+                       ON CONFLICT (job_id) DO UPDATE SET em = EXCLUDED.em, erro = EXCLUDED.erro""",
+                    (job_id, em, erro),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("[status] não gravei a última execução de %s (%s)", job_id, type(e).__name__)
+
+
+def ler_status(job_id: str) -> dict | None:
+    """{'em': datetime, 'erro': str|None} ou None (nunca rodou / sem tabela / sem banco)."""
+    try:
+        from db import get_conn
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT to_regclass('public.painel_job_status')")
+                if not cur.fetchone()[0]:
+                    return None
+                cur.execute("SELECT em, erro FROM painel_job_status WHERE job_id = %s", (job_id,))
+                row = cur.fetchone()
+            conn.rollback()
+        finally:
+            conn.close()
+    except Exception:
+        return None
+    return {"em": row[0], "erro": row[1]} if row else None

@@ -264,7 +264,8 @@ def _apply_turno(
 
     with _apply_lock, trava_global("dist_comercial_apply", espera_max_s=120) as pegou:
         if not pegou:
-            return {"ok": False, "error": "Outra aplicação de turno ainda está rodando. Tente de novo em instantes."}
+            return {"ok": False, "ocupado": True,
+                    "error": "Outra aplicação de turno ainda está rodando. Tente de novo em instantes."}
         try:
             turno_map = _get_turno_map()
             snapshots = _get_snapshots()
@@ -792,6 +793,11 @@ def _run_scheduled_apply() -> None:
                 autor="scheduler",
                 schedule_id=rid,
             )
+            if result.get("ocupado"):
+                # Trava com outra aplicação (manual no site): não marca o dia como
+                # feito; o job do próximo minuto tenta de novo (Fase 3).
+                logger.info("dist_comercial_schedule: regra id=%s adiada, outra aplicação em andamento", rid)
+                continue
             col = "last_run_inicio_date" if edge == "inicio" else "last_run_fim_date"
             try:
                 conn = get_conn()

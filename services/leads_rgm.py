@@ -81,6 +81,16 @@ def _executar(refazer: bool) -> bool:
                 cur.execute(f"CREATE INDEX IF NOT EXISTS {MV}_rgm_idx ON {MV} (rgm)")
                 cur.execute(f"ANALYZE {MV}")
                 acao = "criada"
+            if acao != "existente, em uso":
+                # Fase 3: hora do refresh na própria cópia, para o site (outro processo)
+                # saber a idade dela sem depender da memória do worker.
+                # Savepoint: se o COMMENT falhar (ex.: permissão), o refresh continua valendo.
+                cur.execute("SAVEPOINT hora_refresh")
+                try:
+                    cur.execute(f"COMMENT ON MATERIALIZED VIEW {MV} IS %s", (f"refeita_em={time.time():.0f}",))
+                except Exception:
+                    cur.execute("ROLLBACK TO SAVEPOINT hora_refresh")
+                    logger.warning("%s: não gravei a hora do refresh no comentário", MV)
             conn.commit()
         finally:
             conn.close()
@@ -120,7 +130,11 @@ def confirmar_copia() -> bool:
         try:
             cur = conn.cursor()
             cur.execute(
-                "SELECT ispopulated FROM pg_matviews WHERE schemaname = 'public' AND matviewname = %s",
+                """SELECT m.ispopulated, obj_description(c.oid, 'pg_class')
+                     FROM pg_matviews m
+                     JOIN pg_class c ON c.relname = m.matviewname
+                     JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = m.schemaname
+                    WHERE m.schemaname = 'public' AND m.matviewname = %s""",
                 (MV,),
             )
             row = cur.fetchone()
@@ -130,12 +144,28 @@ def confirmar_copia() -> bool:
     except Exception:
         logger.exception("%s: não consegui conferir a cópia", MV)
         return False
-    if row and row[0]:
-        if _ultimo_ok is None:
-            logger.info("%s: cópia encontrada, consultas passam a usá-la", MV)
-        _ultimo_ok = time.time()
-        return True
-    return garantir()
+    if not (row and row[0]):
+        return garantir()
+    refeita = _hora_do_comentario(row[1])
+    if refeita is not None:
+        novo = refeita                  # idade real: o pronta() vence se o worker parar de refazer
+    elif REFRESH_MIN <= 0:
+        novo = time.time()              # sem refresh periódico, existir basta
+    else:
+        novo = _ultimo_ok               # cópia antiga sem hora: espera o próximo refresh marcar
+    if novo is not None and _ultimo_ok is None:
+        logger.info("%s: cópia encontrada, consultas passam a usá-la", MV)
+    _ultimo_ok = novo
+    return pronta()
+
+
+def _hora_do_comentario(texto) -> float | None:
+    if not texto or not str(texto).startswith("refeita_em="):
+        return None
+    try:
+        return float(str(texto).split("=", 1)[1])
+    except ValueError:
+        return None
 
 
 def agendar_refresh() -> None:

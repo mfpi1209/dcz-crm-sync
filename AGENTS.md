@@ -17,24 +17,25 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - **Site (`JOBS_DO_SITE`):**
     - `funnel_cache_warm` (+`_boot`): `kommo_sync._funnel_cache`;
     - `mp_bwipo_periodo_warm`: `minha_performance._bwipo_periodo_cache`, que itera os períodos que as rotas pediram;
-    - `siaa_avisos_incidentes`: o `_ULTIMO` aparece na Conexão SIAA;
     - os agendamentos da tela Config (`_run_scheduled_sync`, hoje só loga; as rotas `/api/schedules` mexem no agendador do próprio site);
     - os dois jobs novos `mv_leads_rgm_site` e `painel_cache_vigia`;
     - o aquecimento `warm_academic_sumidos_cache` (só roda em `tudo`/`site`).
-  - **Worker (`JOBS_DO_WORKER`):** `bwipo_owner_recente`, `bwipo_painel_base`, `bwipo_contact_ads`, `kommo_leads_dia`, `mv_leads_rgm`, `dist_comercial_schedule_check`, `blog_scheduled_publish`, `conversao_backfill` (+`_boot`), `engagement_daily`, `aceite_reconcile` e `responsible_history_daily` (os dois últimos só com `KOMMO_API_JOBS=1`).
+  - **Worker (`JOBS_DO_WORKER`):** `bwipo_owner_recente`, `bwipo_painel_base`, `bwipo_contact_ads`, `kommo_leads_dia`, `mv_leads_rgm`, `dist_comercial_schedule_check`, `blog_scheduled_publish`, `conversao_backfill` (+`_boot`), `engagement_daily`, `siaa_avisos_incidentes`, `aceite_reconcile` e `responsible_history_daily` (os dois últimos só com `KOMMO_API_JOBS=1`).
+  - **SIAA:** a última execução vai para `painel_job_status` (`trava_jobs.gravar_status`), e a Conexão SIAA lê de lá (`siaa_avisos.ultimo_status`; em `tudo`, cai para a memória se a tabela ainda não existir).
   - **Job novo:** precisa entrar numa das duas listas. O `tests/test_fase3_agendador.py` lê todos os `id=` do código e falha se algum ficar sem lado.
 - **Trava (`trava_jobs.py`):**
   - **Jobs que gravam:** rodam embrulhados em `pg_try_advisory_lock(<hash do id>)`, numa conexão própria fora do pool (o `RESET ALL` do pool não solta lock de sessão). Se outro processo está rodando o mesmo job, a execução é pulada.
-  - **Por que:** cobre o deploy com o container velho e o novo de pé, site e worker ligados com o mesmo job, e vários workers do Gunicorn.
+  - **O que cobre:** dois processos rodando o mesmo job **ao mesmo tempo** (deploy com o container velho e o novo de pé, site em `tudo` com o worker ligado). Vale a partir do segundo deploy desta mudança; no primeiro, o container velho ainda não pega trava.
+  - **O que não cobre:** dois processos com o mesmo job agendado rodam um depois do outro (cada um no seu horário). Por isso todo job que grava fica só no worker, que é um processo só, e nenhum job que grava fica no site (que pode ter vários workers do Gunicorn).
   - **Sem banco:** roda sem trava (`TRAVA_JOBS_ESTRITA=1` pula em vez disso). `TRAVA_JOBS=0` desliga.
   - **Cache por processo (`JOBS_POR_PROCESSO`):** roda sem trava. Cada processo do site aquece o seu; com trava, só um aqueceria.
   - **`trava_global(nome)`:** trava de trecho entre processos, com espera de até N s. Ela substitui o `threading.Lock` onde site e worker fazem a mesma coisa:
-    - `rebuild_painel_base`: a "forte" (upload, tombamento) espera; a "suave" (job) só tenta;
-    - `_apply_turno` da Distribuição Comercial: o agendado (worker) e o manual (site) ficam em fila, como o `_apply_lock` fazia.
+    - `rebuild_painel_base`: a "forte" (upload, tombamento) espera até 5 min e, se desistir, tenta de novo em 60 s; a "suave" (job) só tenta. O `ensure_painel_base` (painel aberto com a base vazia) também pega a trava;
+    - `_apply_turno` da Distribuição Comercial: o agendado (worker) e o manual (site) ficam em fila (até 2 min), como o `_apply_lock` fazia. Se o agendado não conseguir a trava, devolve `ocupado` e **não** marca o dia como feito: o job do minuto seguinte tenta de novo.
     - A chave do trecho é diferente da do job: as duas sessões se bloqueariam.
 - **O que o site precisa saber do worker:**
   - **Base do painel:** o `painel_cache_vigia` (1 min) lê `bwipo_painel_meta.built_at`, que só muda quando alguma linha mudou, e vence os caches do painel e da Minha Performance. Quem montou no próprio processo marca o valor como visto e não vence duas vezes.
-  - **Cópia `mv_leads_rgm`:** o `_ultimo_ok` vale por processo. O `mv_leads_rgm_site` (2 min, `leads_rgm.confirmar_copia`) confere em `pg_matviews` que a cópia existe e populada, e o site passa a usá-la. Se faltar, ele cria.
+  - **Cópia `mv_leads_rgm`:** o `_ultimo_ok` vale por processo. Quem cria ou refaz grava `refeita_em=<epoch>` no comentário da materialized view (com savepoint: se falhar, o refresh vale igual). O `mv_leads_rgm_site` (2 min, `leads_rgm.confirmar_copia`) confere em `pg_matviews` que a cópia existe e populada, e usa a hora do comentário como `_ultimo_ok`. No modo periódico, o `pronta()` continua vencendo se o worker parar de refazer. Se a cópia faltar, ele cria.
 - **Ressalva conhecida:** `aceite_reconcile`/`responsible_history_daily` usam o `_kommo_api_bg_lock` em memória, que deixa de serializar com as threads de aquecimento do site. Hoje os dois estão desligados (`KOMMO_API_JOBS=0`).
 - **Ligar em produção (EasyPanel), nesta ordem:**
   1. Site com `AGENDADOR=site`.
@@ -42,7 +43,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - **Por que nessa ordem:** com o site em `tudo` e o worker ligado, cada job rodaria nos dois processos (a trava só impede que seja ao mesmo tempo).
   - **Horário:** evitar fazer isso perto das 08:00 (`engagement_daily`).
   - **Conferir:** o log do worker mostra "worker no ar com N jobs".
-- **Depois, num passo separado:** subir os workers do Gunicorn (`--workers 2`). A SECRET_KEY fixa já está no ar. Cada worker roda os jobs de cache do site, de propósito.
+- **Depois, num passo separado:** subir os workers do Gunicorn (`--workers 2`). A SECRET_KEY fixa já está no ar. Cada worker roda os jobs de cache do site, de propósito; nenhum deles grava no banco.
 - **Não muda:** nenhum job mudou de horário nem de lógica. Os botões de sync/upload continuam no site. Sem `AGENDADOR`, o comportamento é o de antes.
 - **Testes:** `tests/test_fase3_agendador.py`: papéis, trava, classificação de todos os jobs, vigia, cópia `leads_rgm`, e trava real entre duas sessões no job `testes-pg`.
 

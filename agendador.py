@@ -34,7 +34,6 @@ JOBS_DO_SITE = frozenset({
     "funnel_cache_warm",        # kommo_sync._funnel_cache (funil da home)
     "funnel_cache_warm_boot",
     "mp_bwipo_periodo_warm",    # minha_performance._bwipo_periodo_cache
-    "siaa_avisos_incidentes",   # siaa_avisos._ULTIMO aparece na Conexão SIAA
     "mv_leads_rgm_site",        # leads_rgm._ultimo_ok: o site passa a usar a cópia indexada
     "painel_cache_vigia",       # vence o cache do painel quando o worker remonta a base
 })
@@ -52,6 +51,7 @@ JOBS_DO_WORKER = frozenset({
     "conversao_backfill",
     "conversao_backfill_boot",
     "engagement_daily",              # scores e fila de comunicação (n8n)
+    "siaa_avisos_incidentes",        # avisos de incidente SIAA (última execução em painel_job_status)
     "aceite_reconcile",              # Kommo (só com KOMMO_API_JOBS=1)
     "responsible_history_daily",     # Kommo (só com KOMMO_API_JOBS=1)
 })

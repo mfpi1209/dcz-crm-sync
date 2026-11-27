@@ -1863,6 +1863,12 @@ def rebuild_painel_base(invalidar: str = "forte") -> bool:
 
         with trava_global("painel_base_rebuild", esperar=(invalidar == "forte")) as pegou:
             if not pegou:
+                if invalidar == "forte":
+                    # Esperou e desistiu (outra montagem muito longa): não perde o pedido.
+                    logger.warning("bwipo painel base: montagem forte adiada 60 s (outra em andamento)")
+                    t = threading.Timer(60, rebuild_painel_base, kwargs={"invalidar": "forte"})
+                    t.daemon = True
+                    t.start()
                 return False
             ok = _rebuild_painel_base_locked(invalidar)
             while _painel_base_pendente:
@@ -1880,9 +1886,13 @@ def schedule_painel_base_rebuild() -> None:
 def ensure_painel_base() -> bool:
     if _painel_base_count() > 0:
         return True
-    with _painel_base_lock:
+    from trava_jobs import trava_global
+
+    with _painel_base_lock, trava_global("painel_base_rebuild", esperar=True) as pegou:
         if _painel_base_count() > 0:
-            return True
+            return True     # outro processo (worker) acabou de montar
+        if not pegou:
+            return False
         return _rebuild_painel_base_locked()
 
 
