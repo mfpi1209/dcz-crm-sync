@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, FUTURO_ROUTER } from "./App";
@@ -142,9 +142,15 @@ describe("App", () => {
   });
 
   function abrir(me: Me, caminho = "/") {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(me), { status: 200, headers: { "Content-Type": "application/json" } }),
-    );
+    const json = (corpo: unknown, status = 200) =>
+      new Response(JSON.stringify(corpo), { status, headers: { "Content-Type": "application/json" } });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (entrada) => {
+      const url = String(entrada);
+      if (url === "/api/me") return json(me);
+      if (url === "/api/me/fixadas") return json({ fixadas: [], mais_usadas: ["repasse"] });
+      if (url === "/api/avisos/nao-lidos") return json({ count: 0 });
+      return json({}, 404);
+    });
     const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={cliente}>
@@ -173,8 +179,13 @@ describe("App", () => {
   it("monta o menu com o /api/me e leva as telas ao painel atual", async () => {
     abrir(ME);
     expect(await screen.findByText("Olá, Fulano")).toBeTruthy();
-    const link = screen.getByRole("link", { name: "Repasse" });
+    const menu = within(screen.getByRole("navigation", { name: "Menu principal" }));
+    // Repasse aparece em Mais usadas e no grupo Comercial (que começa fechado).
+    fireEvent.click(menu.getByRole("button", { name: "Comercial" }));
+    const link = within(menu.getByRole("list", { name: "Comercial" })).getByRole("link", { name: "Repasse" });
     expect(link.getAttribute("href")).toBe("/#repasse");
+    const maisUsadas = within(await menu.findByRole("list", { name: "Mais usadas" }));
+    expect(maisUsadas.getByRole("link", { name: "Repasse" }).getAttribute("href")).toBe("/#repasse");
     expect(screen.queryByRole("link", { name: "Dashboard" })).toBeNull();
   });
 

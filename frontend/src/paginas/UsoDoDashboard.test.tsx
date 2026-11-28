@@ -56,6 +56,8 @@ function abrir(opcoes: { admin?: boolean; stats?: (url: string) => Response } = 
     const url = String(entrada);
     chamadas.push(url);
     if (url === "/api/me") return json(me(opcoes.admin ?? true));
+    if (url === "/api/me/fixadas") return json({ fixadas: [], mais_usadas: [] });
+    if (url === "/api/avisos/nao-lidos") return json({ count: 0 });
     if (url.startsWith("/api/page-views/stats")) return (opcoes.stats ?? (() => json(STATS)))(url);
     return json({}, 404);
   });
@@ -167,7 +169,8 @@ describe("Uso do Dashboard", () => {
   it("no menu, a tela aponta para o front novo", async () => {
     abrir();
     await screen.findByText("1.234");
-    const link = screen.getByRole("link", { name: "Uso do Dashboard" });
+    const menu = within(screen.getByRole("navigation", { name: "Menu principal" }));
+    const link = within(menu.getByRole("list", { name: "TI" })).getByRole("link", { name: "Uso do Dashboard" });
     expect(link.getAttribute("href")).toBe("/page_views");
   });
 });
