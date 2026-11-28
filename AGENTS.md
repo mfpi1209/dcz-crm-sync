@@ -4,6 +4,27 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-28 — Fase 4: Dashboard (home) no front novo (`/app/dashboard`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar a home de quem não é comercial (`_dashboard.html` + `dashboard.js`) para o front novo, no visual novo, com os mesmos números. As rotas de `routes/dashboard.py`, `kommo_sync.py` e `upload.py` não mudam.
+- **Tela nova (`frontend/src/paginas/Dashboard.tsx` + `paginas/dashboard/`):**
+  - **Quem vê o quê (pela categoria do `/api/me`, como o `loadDashboard`):** supervisor comercial e supervisor acadêmico veem um aviso com link para `/#dashboard` (painel deles não migrado) e a tela não busca nada da home; acadêmico vai direto para Meus Atendimentos se tiver a página, senão vê os 4 atalhos; os demais, o Dashboard Acadêmico. As rotas são todas da página `dashboard`, sem modo admin.
+  - **Funil de vendas:** `funnel-live` + `new-leads-today` ao abrir; ao terminar o funil, `yesterday-summary` (ou `funnel-yesterday`). KPIs (novos hoje, ganho ontem com leads e tendência, total, aceites com delta, conversão), etapas em destaque, visualização em barras com Perdidos. Funil "aquecendo": pergunta de novo sem forçar em 4 s e depois a cada 5 s, até 30 vezes (como `_dashPollFunnelWarm`); limite de 2 min por pedido; aviso de demora aos 8 s. "Atualizar" força (`?force=1`) só funil, leads de hoje e ontem. Não há atualização periódica (a antiga também não tinha).
+  - **Fonte de dados** (`/api/dashboard`), **matrículas por tipo** (Total, Novos = calouros+regresso+recompra com sub-cartões, Rematrículas/Veteranos, "!" com a regra), **situação** (cartões clicáveis, select no cabeçalho, transferências recebidas sob demanda), **saúde financeira** (só com `has_data`; cartões levam à Inadimplência), **polo** (nomes canônicos por `nomePolo`, cópia de `normalizePoloDisplay`), **nível**, **turma/ciclo**, **evolução** (chart.js, agregado/detalhado, clique no mês abre os dias) e **comparação de ciclos**.
+  - **Filtros:** ciclo (salvo em `localStorage["dash_ciclo_v2"]`; vale se ainda existe, senão o mais recente), nível e situação aplicam na hora, como na antiga; Limpar volta ao ciclo mais recente e zera o resto.
+  - **Servidor:** `/api/dashboard/students` é chamada uma vez por combinação de filtros (abertura = 1 chamada). Os blocos buscam um de cada vez, como o `_stuRefreshFiltered`: alunos → evolução → saúde → ciclos. Nenhuma consulta da tela tenta de novo sozinha. Todos os pedidos usam o `signal` do TanStack Query.
+  - **chart.js 4.4.7** (versão exata do painel antigo), registrado só com `LineController`, `LineElement`, `PointElement`, `CategoryScale`, `LinearScale` e `Tooltip`. Cores das séries e da grade vêm das variáveis `--grafico-*` de `estilo.css`, lidas na hora; o gráfico redesenha ao trocar o tema. Novas variáveis: `--positivo`, `--negativo`, `--aviso`, `--destaque`, `--fundo-positivo`, `--funil-<etapa>`.
+- **Diferenças de propósito:**
+  - período (De/Até) só vale no "Aplicar" (a antiga buscava a cada data mexida, refazendo a rota pesada);
+  - trocar qualquer filtro fecha o mês aberto no gráfico (a antiga ficava na granularidade diária sem o mês, um estado quebrado);
+  - os ciclos buscam de novo quando o nível muda por qualquer caminho, inclusive o clique em Graduação/Pós (a antiga só no `applyDashboardFilters` e mostrava ciclos do nível anterior); com o mesmo nível não buscam de novo; a saúde financeira não busca de novo quando só o período muda (a rota não usa período);
+  - `new-leads-today` vai uma vez na abertura (a antiga chamava duas);
+  - erros do servidor aparecem na tela (fonte, alunos, evolução, saúde, ciclos, transferências); a antiga deixava em branco ou só no console;
+  - sem a animação de contagem dos números e sem o selo de filtros do cabeçalho (os selects já mostram; a barra "Filtrando por" e a legenda do gráfico continuam); conversão com vírgula (`25,0%`).
+- **Não reproduzido:** os painéis de supervisor comercial e acadêmico (`_dashboard_supervisor*.html`, `dashboard_supervisor*.js`): ficam no painel atual, com link na tela nova.
+- **Menu antigo:** o item Dashboard do `_sidebar.html` continua na tela antiga até a aprovação; `tests/test_front_novo.py` ganhou `test_dashboard_migrado_mas_menu_antigo_ainda_na_tela_antiga`.
+- **Testes:** `paginas/Dashboard.test.tsx` (43, chart.js falso que guarda a configuração do gráfico). `menu.test.tsx` usava `dashboard` como exemplo de tela não migrada; passou a usar Avisos.
+
 ### 2026-11-28 — Fase 4: Repasse no front novo (`/app/repasse`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** migrar a tela Repasse para o front novo, no visual novo, com os mesmos números e o mesmo comportamento da antiga (`_repasse.html` + `repasse.js`). As APIs de `routes/repasse.py` não mudam.
