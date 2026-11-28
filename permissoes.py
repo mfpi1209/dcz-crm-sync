@@ -111,6 +111,7 @@ ROTAS_SEM_PAGINA = frozenset({
 ROTAS_DO_PROPRIO_USUARIO = frozenset({
     "/api/minha-performance/minhas-matriculas",  # matrículas que o consultor lança para si
     "/api/solicitacoes_ti/meus",                 # chamados abertos pela própria pessoa
+    "/api/me/fixadas",                           # telas fixadas do próprio usuário (no banco)
 })
 
 PAGINAS_POR_ENDPOINT: dict[str, tuple[str, ...]] = {
