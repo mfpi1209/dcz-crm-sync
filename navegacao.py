@@ -157,6 +157,17 @@ class Menu:
             return True
         return page in self.pages
 
+    def visivel(self, page: str) -> bool:
+        """A tela pode aparecer em Fixadas/Mais usadas? Segue o menu.
+
+        `pode` sozinho deixa passar telas que o menu esconde (ex.: tela do grupo TI
+        para quem não é admin): aqui o grupo da tela também precisa estar visível.
+        """
+        if not self.pode(page):
+            return False
+        secoes = self.secoes()
+        return all(secoes.get(grupo, True) for grupo, paginas in GRUPOS.items() if page in paginas)
+
     @property
     def pagina_inicial(self) -> str:
         cat = (self.categoria or "").strip().lower()

@@ -256,6 +256,10 @@ app.register_blueprint(motor_resultados_bp)
 from routes.front_novo import front_novo_bp
 app.register_blueprint(front_novo_bp)
 
+# Telas fixadas por usuário (Fase 4, etapa 3). Rota do próprio usuário.
+from routes.fixadas import fixadas_bp
+app.register_blueprint(fixadas_bp)
+
 # ── Atualizar Preço — rotas do webapp standalone integrado ────────────────
 try:
     from routes.atualizar_preco_app import app as _preco_app
@@ -308,6 +312,7 @@ from db import (
     _ensure_avisos_tables,
     _ensure_siaa_incidentes_table,
     _ensure_page_views_table,
+    _ensure_nav_fixadas_table,
     _ensure_funnel_log_table,
     _ensure_premiacao_tables,
     _ensure_premiacao_interna_tables,
@@ -341,6 +346,7 @@ _ensure_engagement_tables()
 _ensure_avisos_tables()
 _ensure_siaa_incidentes_table()
 _ensure_page_views_table()
+_ensure_nav_fixadas_table()
 _ensure_funnel_log_table()
 _ensure_premiacao_tables()
 _ensure_premiacao_interna_tables()
