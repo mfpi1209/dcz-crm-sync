@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Route, Routes, useParams } from "react-router-dom";
 import { registrarAcesso } from "./rastreio";
 import { Estrutura } from "./componentes/Estrutura";
@@ -23,7 +23,11 @@ function Tela() {
   if (!pode) {
     return <NaoEncontrada />;
   }
-  return <Componente key={pagina} />;
+  return (
+    <Suspense fallback={<p className="text-sm" style={{ color: "var(--text-muted)" }}>Carregando…</p>}>
+      <Componente key={pagina} />
+    </Suspense>
+  );
 }
 
 export function App() {
