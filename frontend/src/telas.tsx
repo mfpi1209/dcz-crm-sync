@@ -1,7 +1,9 @@
-import type { ComponentType } from "react";
-import { Inadimplencia } from "./paginas/Inadimplencia";
+import { type ComponentType, lazy } from "react";
 import { Repasse } from "./paginas/Repasse";
 import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
+
+// Carregada sob demanda: leva o chart.js, que fica fora do pacote principal.
+const Inadimplencia = lazy(() => import("./paginas/Inadimplencia").then((m) => ({ default: m.Inadimplencia })));
 
 /**
  * Telas já migradas para o front novo: chave = mesmo nome da página no painel

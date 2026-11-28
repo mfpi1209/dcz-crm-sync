@@ -105,3 +105,11 @@ export function qsPorMes(f: Filtros): string {
   if (f.date_b) p.push("date_b=" + f.date_b);
   return montar(p);
 }
+
+/** _doCompare: só vão as datas preenchidas. */
+export function qsComparar(a: string, b: string): string {
+  const p: string[] = [];
+  if (a) p.push("date_a=" + a);
+  if (b) p.push("date_b=" + b);
+  return montar(p);
+}

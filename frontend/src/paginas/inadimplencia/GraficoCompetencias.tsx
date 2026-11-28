@@ -50,7 +50,10 @@ export function GraficoCompetencias({
   const [dia, setDia] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!datas.length) return;
+    if (!datas.length) {
+      setDia(null); // como o _syncDateInput: sem datas, o campo fica vazio
+      return;
+    }
     setDia((atual) => (atual && datas.includes(atual) ? atual : datas[datas.length - 1]));
   }, [datas]);
 
@@ -73,12 +76,11 @@ export function GraficoCompetencias({
             {
               label: "% Inadimplência",
               data: lista.map((i) => i.ponto.taxa_pct),
+              // Barra de dia que faltou: cor mais clara e rótulo "(últ.)" em cinza (como na antiga).
               backgroundColor: lista.map((it, i) => hexRgba(corDe(i), it.exato ? 0.7 : 0.35)),
               borderColor: lista.map((_, i) => corDe(i)),
               borderWidth: 1.5,
               borderRadius: 6,
-              // Barra de dia que faltou fica tracejada (como na antiga).
-              borderDash: lista.map((it) => (it.exato ? [] : [4, 4])) as unknown as number[],
               _itens: lista,
             } as never,
           ],

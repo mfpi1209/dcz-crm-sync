@@ -11,18 +11,20 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
   - filtros numa linha (competência, últimos meses, data inicial e final), Limpar e **Aplicar** à direita. Só um filtro vale por vez, com as regras da antiga: trocar meses limpa competência e datas, trocar competência limpa as datas, trocar data limpa a competência; no Aplicar, datas > competência > meses;
   - buscas iguais ao `loadInadimplencia`: `list`, `atual`, `comparar` (ou `comparar-periodo` com competência), `evolucao` e `reincidencia` (sem a competência), com os mesmos parâmetros e na mesma ordem; havendo snapshots, `evolucao-por-mes`. `competencias` busca na abertura e depois de apagar. Os pedidos usam o `signal` do TanStack Query;
   - indicadores (taxa atual, inadimplentes com a variação "vs 7d" do `/comparar` sem competência, em curso);
-  - "Comparar 2 datas" (abre com o resultado automático; Comparar usa as datas do cartão, que começam em 7 dias atrás e hoje em UTC, como a antiga), reincidência (4 faixas e o resumo), evolução (linha, botões 7d/30d/90d/Tudo que refazem só a evolução com `days=N&recent_months=all`; Aplicar desliga o botão), comparativo por competência (barras, campo Dia só redesenha, "(últ.)" e barra tracejada quando falta o dia) e histórico;
+  - "Comparar 2 datas" (abre com o resultado automático; Comparar usa as datas do cartão e não manda a que estiver vazia; elas começam em 7 dias atrás e hoje em UTC, como a antiga), reincidência (4 faixas e o resumo), evolução (linha, botões 7d/30d/90d/Tudo que refazem só a evolução com `days=N&recent_months=all`; Aplicar desliga o botão), comparativo por competência (barras, campo Dia só redesenha; quando falta o dia, a barra fica mais clara e o rótulo ganha "(últ.)" em cinza; sem datas, o Dia fica vazio) e histórico;
   - **única escrita:** Apagar no histórico, com o mesmo `confirm` ("Apagar snapshot X?\nEsta ação não pode ser desfeita.") e o mesmo `alert("Erro: …")`; depois recarrega a tela toda, competências inclusive.
-- **Gráficos:** `chart.js` 4.4.7 exato (o mesmo do painel antigo), registrado só com linha, barras, escalas, preenchimento e tooltip (`paginas/inadimplencia/grafico.ts`). As cores vêm das variáveis `--grafico-*` de `estilo.css` (claro e escuro), e os gráficos se redesenham quando o tema muda.
+- **Gráficos:** `chart.js` 4.4.7 exato (o mesmo do painel antigo), registrado só com linha, barras, escalas, preenchimento e tooltip (`paginas/inadimplencia/grafico.ts`). As cores vêm das variáveis `--grafico-*` de `estilo.css` (claro e escuro), e os gráficos se redesenham quando o tema muda. A tela é carregada sob demanda (`lazy` em `telas.tsx`, `Suspense` em `App.tsx`), então o chart.js fica num pedaço à parte e não pesa no pacote principal.
 - **Quem vê:** todas as rotas exigem só a página `inadimplencia` (não há modo admin na antiga nem no servidor); usuário comum com a página vê a mesma tela, Apagar inclusive.
 - **Diferenças de propósito:**
   - os filtros de cima só buscam no Aplicar (a antiga buscava a cada troca de select ou data, e digitar uma data disparava várias buscas com a reincidência, que é pesada). Aplicar com os mesmos filtros busca de novo, como a antiga;
   - o comparativo por competência busca assim que a lista chega (a antiga esperava as cinco rotas);
+  - competências buscam só na abertura e depois de apagar (a antiga buscava de novo a cada Aplicar e Limpar);
+  - os botões 7d/30d/90d/Tudo não põem o Aplicar em "Aplicando…" (só a evolução busca);
   - erro do servidor aparece na tela: na lista (no lugar do vazio), na comparação, nos gráficos e no resumo da reincidência (a antiga só escrevia no console);
   - sem snapshots, os indicadores mostram "—" (a antiga deixava os números da busca anterior);
   - o aviso de data sem upload usa ícone no lugar do "⚠"; filtros sobem para a primeira linha e os indicadores ficam abaixo.
 - **Menu antigo:** o item continua na tela antiga até a aprovação (`TELAS_APROVADAS` segue `{"page_views"}`).
-- **Testes:** `paginas/Inadimplencia.test.tsx` (33), com `chart.js` falso que guarda a configuração de cada gráfico (rótulos, valores, tooltips e marcas "(últ.)").
+- **Testes:** `paginas/Inadimplencia.test.tsx` (37: inclui datas vazias no Comparar, troca de tema, saída da tela e faixa sem "Aplicando…"), com `chart.js` falso que guarda a configuração de cada gráfico (rótulos, valores, tooltips e marcas "(últ.)").
 
 ### 2026-11-28 — Fase 4: Repasse no front novo (`/app/repasse`)
 - **Modelo usado:** Claude Opus 5.5.

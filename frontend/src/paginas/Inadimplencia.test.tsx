@@ -490,6 +490,62 @@ describe("Inadimplência: comparar 2 datas", () => {
     await carregado();
     expect(secao("Comparar 2 datas").getByText("Nenhum snapshot encontrado para as datas selecionadas.")).toBeTruthy();
   });
+
+  it("Comparar não manda a data vazia (como o _doCompare)", async () => {
+    abrir();
+    await carregado();
+    const card = secao("Comparar 2 datas");
+    fireEvent.change(card.getByLabelText("Comparar de"), { target: { value: "" } });
+    fireEvent.click(card.getByRole("button", { name: "Comparar" }));
+    await waitFor(() => expect(urls("comparar")).toContain("/api/inadimplencia/comparar?date_b=2026-11-28"));
+    fireEvent.change(card.getByLabelText("Comparar até"), { target: { value: "" } });
+    fireEvent.click(card.getByRole("button", { name: "Comparar" }));
+    await waitFor(() => expect(urls("comparar").filter((u) => u === "/api/inadimplencia/comparar")).toHaveLength(2));
+    expect(urls("comparar").some((u) => /date_a=(&|$)|date_b=(&|$)/.test(u))).toBe(false);
+  });
+});
+
+describe("Inadimplência: gráficos, tema e saída", () => {
+  it("trocar o tema destrói os gráficos e desenha de novo", async () => {
+    abrir();
+    await carregado();
+    const linha = grafico("line");
+    const barras = grafico("bar");
+    document.documentElement.classList.add("dark");
+    try {
+      await waitFor(() => expect(linha.destruido).toBe(true));
+      await waitFor(() => expect(barras.destruido).toBe(true));
+      expect(grafico("line")).toBeTruthy();
+      expect(grafico("line")).not.toBe(linha);
+      expect(grafico("bar")).not.toBe(barras);
+    } finally {
+      document.documentElement.classList.remove("dark");
+    }
+  });
+
+  it("sair da tela destrói todos os gráficos", async () => {
+    abrir();
+    await carregado();
+    expect(graficos.length).toBeGreaterThan(0);
+    cleanup();
+    expect(graficos.every((g) => g.destruido)).toBe(true);
+  });
+
+  it("os botões de faixa não põem o Aplicar em 'Aplicando…'", async () => {
+    let soltar: () => void = () => {};
+    abrir();
+    await carregado();
+    // A evolução da faixa fica pendente enquanto conferimos o botão.
+    vi.mocked(globalThis.fetch).mockImplementationOnce((entrada) => {
+      chamadas.push({ url: String(entrada), metodo: "GET" });
+      return new Promise<Response>((r) => (soltar = () => r(json(EVOLUCAO))));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "30d" }));
+    await waitFor(() => expect(urlsDados().slice(-1)[0]).toBe("/api/inadimplencia/evolucao?days=30&recent_months=all"));
+    expect(screen.getByRole("button", { name: "Aplicar" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Aplicando…" })).toBeNull();
+    soltar();
+  });
 });
 
 describe("Inadimplência: reincidência", () => {

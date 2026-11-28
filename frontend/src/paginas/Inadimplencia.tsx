@@ -13,6 +13,7 @@ import {
   plural,
   qsEvolucao,
   qsFiltros,
+  qsComparar,
   qsPorMes,
   rotuloCompetencia,
   sinal,
@@ -132,7 +133,7 @@ export function Inadimplencia() {
   const manualQ = useQuery({
     queryKey: ["inadimplencia", "comparar-manual", manual],
     queryFn: ({ signal }) =>
-      api<Comparacao>(`${P}comparar?date_a=${manual!.a}&date_b=${manual!.b}`, { signal }),
+      api<Comparacao>(P + "comparar" + qsComparar(manual!.a, manual!.b), { signal }),
     enabled: manual != null,
   });
 
@@ -167,7 +168,8 @@ export function Inadimplencia() {
   }
 
   const carregando =
-    listaQ.isFetching || atualQ.isFetching || compQ.isFetching || evolQ.isFetching || reincQ.isFetching;
+    // Os botões de faixa refazem só a evolução: não contam como "Aplicando…".
+    listaQ.isFetching || atualQ.isFetching || compQ.isFetching || (evolQ.isFetching && faixa == null) || reincQ.isFetching;
 
   // Opções de competência: Recentes, o mês atual no topo (mesmo sem snapshot) e as do servidor.
   const atualMes = mesAtual();
