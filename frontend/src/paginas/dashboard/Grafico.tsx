@@ -1,4 +1,4 @@
-import { CategoryScale, Chart, LinearScale, LineController, LineElement, PointElement, Tooltip } from "chart.js";
+import { CategoryScale, Chart, LinearScale, LineController, LineElement, PointElement, Tooltip, type ChartOptions } from "chart.js";
 import { useEffect, useRef, useState } from "react";
 import { rotuloEixo } from "./formato";
 
@@ -48,6 +48,27 @@ export function GraficoLinha({
     if (!tela.current) return;
     const grade = lerCor("--grafico-grade");
     const texto = lerCor("--text-muted");
+    const opcoes: ChartOptions<"line"> = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 400 },
+      interaction: { mode: "index", intersect: false },
+      onClick: (_evt, elementos) => {
+        if (elementos.length) clique.current?.(elementos[0].index);
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (c) => `${c.dataset.label}: ${(c.parsed.y ?? 0).toLocaleString("pt-BR")}`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { color: grade }, ticks: { color: texto, font: { size: 10 }, maxRotation: 0 } },
+        y: { grid: { color: grade }, ticks: { color: texto, font: { size: 10 }, callback: (v) => rotuloEixo(Number(v)) } },
+      },
+    };
     const grafico = new Chart(tela.current, {
       type: "line",
       data: {
@@ -68,28 +89,7 @@ export function GraficoLinha({
           };
         }),
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 400 },
-        interaction: { mode: "index", intersect: false },
-        onClick: (_evt: unknown, elementos: { index: number }[]) => {
-          if (elementos.length) clique.current?.(elementos[0].index);
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: (c: { dataset: { label?: string }; parsed: { y: number } }) =>
-                `${c.dataset.label}: ${c.parsed.y.toLocaleString("pt-BR")}`,
-            },
-          },
-        },
-        scales: {
-          x: { grid: { color: grade }, ticks: { color: texto, font: { size: 10 }, maxRotation: 0 } },
-          y: { grid: { color: grade }, ticks: { color: texto, font: { size: 10 }, callback: (v: string | number) => rotuloEixo(Number(v)) } },
-        },
-      } as never,
+      options: opcoes,
     });
     return () => grafico.destroy();
   }, [rotulos, series, tema]);

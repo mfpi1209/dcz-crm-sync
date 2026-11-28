@@ -200,7 +200,8 @@ const ciclos = () => de("/api/dashboard/ciclos");
 const grupo = (nome: string) => within(screen.getByRole("group", { name: nome }));
 
 async function aberto() {
-  await screen.findByRole("button", { name: /^Novos/ });
+  // A tela é carregada sob demanda (lazy): a primeira abertura importa o módulo.
+  await screen.findByRole("button", { name: /^Novos/ }, { timeout: 5000 });
   await waitFor(() => expect(ciclos().length).toBeGreaterThan(0));
 }
 
@@ -215,6 +216,8 @@ beforeEach(() => {
   localStorage.clear();
   ESPERA_FUNIL.primeira = 1;
   ESPERA_FUNIL.demais = 1;
+  ESPERA_FUNIL.tentativas = 30;
+  document.documentElement.classList.remove("dark");
 });
 
 afterEach(() => {
@@ -550,6 +553,20 @@ describe("Dashboard: evolução de matrículas", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "Voltar" })).toBeNull());
   });
 
+  it("gráfico é destruído ao sair e redesenhado ao trocar o tema", async () => {
+    abrir();
+    await aberto();
+    await waitFor(() => expect(grafico()).toBeTruthy());
+    const primeiro = grafico();
+    act(() => document.documentElement.classList.add("dark"));
+    await waitFor(() => expect(primeiro.destruido).toBe(true));
+    const segundo = grafico();
+    expect(segundo).not.toBe(primeiro);
+    expect(segundo.destruido).toBe(false);
+    cleanup();
+    expect(segundo.destruido).toBe(true);
+  });
+
   it("sem períodos: aviso de vazio", async () => {
     abrir({ rotas: { "/api/dashboard/timeline": () => json({ periods: [], series: { total: [] } }) } });
     await aberto();
@@ -649,6 +666,24 @@ describe("Dashboard: funil", () => {
     ESPERA_FUNIL.primeira = 60000;
     expect(await screen.findByText("Funil carregando.")).toBeTruthy();
     expect(screen.getByText("Contagem no Bwipo pode levar cerca de 20s")).toBeTruthy();
+  });
+
+  it("funil que não aquece: desiste depois das tentativas", async () => {
+    ESPERA_FUNIL.tentativas = 2;
+    abrir({ rotas: { "/api/kommo/funnel-live": () => json({ ok: false, warming: true, error: "Funil carregando." }) } });
+    expect(await screen.findByText("Funil ainda carregando. Clique em Tentar novamente.")).toBeTruthy();
+    expect(de("/api/kommo/funnel-live")).toHaveLength(3);
+  });
+
+  it("sair da tela durante o aquecimento para as perguntas", async () => {
+    ESPERA_FUNIL.primeira = 5;
+    ESPERA_FUNIL.demais = 5;
+    abrir({ rotas: { "/api/kommo/funnel-live": () => json({ ok: false, warming: true, error: "Funil carregando." }) } });
+    await waitFor(() => expect(de("/api/kommo/funnel-live").length).toBeGreaterThanOrEqual(2));
+    cleanup();
+    const n = de("/api/kommo/funnel-live").length;
+    await new Promise((r) => setTimeout(r, 60));
+    expect(de("/api/kommo/funnel-live")).toHaveLength(n);
   });
 
   it("erro do funil: mensagem e Tentar novamente", async () => {

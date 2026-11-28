@@ -1,7 +1,9 @@
-import type { ComponentType } from "react";
-import { Dashboard } from "./paginas/Dashboard";
+import { lazy, type ComponentType } from "react";
 import { Repasse } from "./paginas/Repasse";
 import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
+
+// Carregada sob demanda: leva o chart.js para um pedaço separado do bundle.
+const Dashboard = lazy(() => import("./paginas/Dashboard").then((m) => ({ default: m.Dashboard })));
 
 /**
  * Telas já migradas para o front novo: chave = mesmo nome da página no painel

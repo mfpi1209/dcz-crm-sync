@@ -36,6 +36,7 @@
   --negativo: #e11d48;
   --aviso: #d97706;
   --destaque: #7c3aed;
+  --texto-sobre-cor: #fff;
 
   /* Gráficos (Dashboard): séries e grade, lidas em tempo de execução. */
   --grafico-novos: #3b82f6;
@@ -88,6 +89,7 @@
   --negativo: #fb7185;
   --aviso: #fbbf24;
   --destaque: #c4b5fd;
+  --texto-sobre-cor: #fff;
 
   --grafico-novos: #60a5fa;
   --grafico-rematricula: #34d399;

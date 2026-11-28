@@ -51,11 +51,15 @@ const cor = (chave: string) => (ORDEM_VISUAL.includes(chave) ? `var(--funil-${ch
 
 function esperar(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((ok, falha) => {
-    const t = setTimeout(ok, ms);
-    signal.addEventListener("abort", () => {
+    const abortar = () => {
       clearTimeout(t);
       falha(signal.reason ?? new DOMException("Abortado", "AbortError"));
-    });
+    };
+    const t = setTimeout(() => {
+      signal.removeEventListener("abort", abortar);
+      ok();
+    }, ms);
+    signal.addEventListener("abort", abortar, { once: true });
   });
 }
 
@@ -367,8 +371,8 @@ function Visual({ dados }: { dados: DadosFunil }) {
                 </p>
                 <div className="flex-1 flex items-end">
                   <div
-                    className="w-full rounded-t-xl flex flex-col items-center justify-center text-white"
-                    style={{ height: `${altura(s.count)}%`, background: cor(s.key) }}
+                    className="w-full rounded-t-xl flex flex-col items-center justify-center"
+                    style={{ height: `${altura(s.count)}%`, background: cor(s.key), color: "var(--texto-sobre-cor)" }}
                   >
                     <span className="font-extrabold text-base leading-none">{contagemK(s.count)}</span>
                     {s.pct != null && <span className="text-[10px] mt-1 opacity-80">{s.pct}%</span>}
