@@ -111,16 +111,47 @@ describe("busca de telas", () => {
     expect(document.activeElement).toBe(botao);
   });
 
-  it("Tab não sai do diálogo e o fundo fecha", async () => {
+  it("Tab não sai do diálogo, mesmo com o foco fora do campo", async () => {
     await abrir();
     fireEvent.keyDown(document, { key: "k", ctrlKey: true });
     const dialogo = await screen.findByRole("dialog");
     const campo = screen.getByRole("combobox");
-    fireEvent.keyDown(campo, { key: "Tab" });
-    expect(dialogo.contains(document.activeElement)).toBe(true);
-    fireEvent.keyDown(campo, { key: "Tab", shiftKey: true });
-    expect(dialogo.contains(document.activeElement)).toBe(true);
+    for (const shiftKey of [false, true]) {
+      // foco no painel (clique numa parte sem campo) e, depois, no corpo da página
+      for (const fora of [dialogo, document.body]) {
+        fora.focus();
+        if (fora === document.body) (document.activeElement as HTMLElement).blur();
+        expect(document.activeElement).not.toBe(campo);
+        const seguiu = fireEvent.keyDown(document.activeElement ?? document.body, { key: "Tab", shiftKey });
+        expect(seguiu).toBe(false); // preventDefault: o navegador não move o foco
+        expect(document.activeElement).toBe(campo);
+      }
+    }
+  });
+
+  it("clicar no fundo fecha", async () => {
+    await abrir();
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    await screen.findByRole("dialog");
     fireEvent.click(screen.getByTestId("busca-fundo"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("Esc fecha depois de clicar no painel (foco fora do campo)", async () => {
+    await abrir();
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    const dialogo = await screen.findByRole("dialog");
+    fireEvent.click(screen.getByText(/navegar/));
+    // clique em área sem campo: o foco sai do input (para o painel ou o corpo)
+    dialogo.focus();
+    expect(document.activeElement).toBe(dialogo);
+    fireEvent.keyDown(dialogo, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    await screen.findByRole("dialog");
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 

@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { navegador } from "../api";
 import { filtrarTelas } from "../busca";
@@ -63,7 +63,7 @@ function Painel({ itens, onFechar }: { itens: ItemBusca[]; onFechar: () => void 
     else navegador.irPara(item.href);
   }
 
-  function tecla(e: KeyboardEvent) {
+  function tecla(e: globalThis.KeyboardEvent) {
     const n = resultados.length;
     if (e.key === "Escape") {
       e.preventDefault();
@@ -84,6 +84,12 @@ function Painel({ itens, onFechar }: { itens: ItemBusca[]; onFechar: () => void 
     }
   }
 
+  // Teclado no documento: se o foco sair do campo (clique no painel), Esc e Tab continuam valendo.
+  useEffect(() => {
+    document.addEventListener("keydown", tecla);
+    return () => document.removeEventListener("keydown", tecla);
+  });
+
   const idOpcao = (i: number) => `${id}-op-${i}`;
 
   return (
@@ -92,7 +98,7 @@ function Painel({ itens, onFechar }: { itens: ItemBusca[]; onFechar: () => void 
       data-testid="busca-fundo"
       onClick={(e) => e.target === e.currentTarget && onFechar()}
     >
-      <div role="dialog" aria-modal="true" aria-label="Buscar tela" className="busca-painel" onKeyDown={tecla}>
+      <div role="dialog" aria-modal="true" aria-label="Buscar tela" tabIndex={-1} className="busca-painel">
         <div className="busca-campo">
           <span className="material-symbols-outlined" aria-hidden>
             search
