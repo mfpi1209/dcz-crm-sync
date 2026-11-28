@@ -120,10 +120,12 @@ export function MinhaPerformance() {
   // Trocar consultor ou campanha volta à aba Performance (como o loadMinhaPerformance).
   const [aba, setAba] = useState<{ nome: "performance" | "matriculas"; chave: string }>({ nome: "performance", chave: qs });
   const abaAtual = aba.chave === qs ? aba.nome : "performance";
-  const [matAberta, setMatAberta] = useState(false);
+  // A aba Matrículas só monta (e busca) depois de aberta para este consultor/campanha.
+  const [matChave, setMatChave] = useState<string | null>(null);
+  const matAberta = matChave === qs;
   function irPara(nome: "performance" | "matriculas") {
     setAba({ nome, chave: qs });
-    if (nome === "matriculas") setMatAberta(true);
+    if (nome === "matriculas") setMatChave(qs);
   }
 
   const [aviso, setAviso] = useState<Aviso | null>(null);

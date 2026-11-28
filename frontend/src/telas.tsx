@@ -1,16 +1,10 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import { Repasse } from "./paginas/Repasse";
 import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
 
 // Minha Performance traz o chart.js: carrega só quando a tela abre (fora do pacote principal).
-const MinhaPerformanceAdiada = lazy(() => import("./paginas/MinhaPerformance").then((m) => ({ default: m.MinhaPerformance })));
-function MinhaPerformance() {
-  return (
-    <Suspense fallback={<p className="py-16 text-center text-sm" style={{ color: "var(--text-muted)" }}>Carregando seu painel...</p>}>
-      <MinhaPerformanceAdiada />
-    </Suspense>
-  );
-}
+// O App.tsx põe a tela num Suspense e num ErroTela.
+const MinhaPerformance = lazy(() => import("./paginas/MinhaPerformance").then((m) => ({ default: m.MinhaPerformance })));
 
 /**
  * Telas já migradas para o front novo: chave = mesmo nome da página no painel
@@ -19,7 +13,7 @@ function MinhaPerformance() {
  * Para migrar uma tela: criar o componente em src/paginas/ e registrar aqui.
  * A permissão continua no servidor; a rota só aparece para quem tem a página no /api/me.
  */
-export const TELAS_NOVAS: Record<string, ComponentType> = {
+export const TELAS_NOVAS: Record<string, ComponentType | LazyExoticComponent<ComponentType>> = {
   page_views: UsoDoDashboard, // etapa 3 (27/11): piloto
   repasse: Repasse, // 28/11: no menu antigo, o link só troca depois da aprovação
   minha_performance: MinhaPerformance, // 28/11: idem

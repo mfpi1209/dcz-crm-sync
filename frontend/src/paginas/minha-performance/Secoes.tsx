@@ -205,7 +205,7 @@ export function PixDoDia({ d }: { d: Insights }) {
             <p>{detalhe}</p>
             {ontemTxt && <p className={`text-xs font-semibold mt-1 ${ontemCor}`}>{ontemTxt}</p>}
           </div>
-          {fila > 0 && meta > 0 && (
+          {fila > 0 && (
             <span className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-lg text-xs bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25">
               <span className="material-symbols-outlined text-sm" aria-hidden>
                 pending
@@ -286,7 +286,7 @@ export function RankingCard({ d }: { d: Insights }) {
             </span>
           ) : (
             <span className="text-2xl font-extrabold" aria-hidden>
-              #
+              {`${pos}°`}
             </span>
           )}
         </div>

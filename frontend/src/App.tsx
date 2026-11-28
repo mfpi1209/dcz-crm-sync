@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Route, Routes, useParams } from "react-router-dom";
 import { registrarAcesso } from "./rastreio";
+import { ErroTela } from "./componentes/ErroTela";
 import { Estrutura } from "./componentes/Estrutura";
 import { useMe } from "./me";
 import { Inicio } from "./paginas/Inicio";
@@ -23,7 +24,15 @@ function Tela() {
   if (!pode) {
     return <NaoEncontrada />;
   }
-  return <Componente key={pagina} />;
+  // Telas carregadas sob demanda: o Suspense espera o pacote; o ErroTela (zerado a cada
+  // rota) segura a falha sem derrubar o menu.
+  return (
+    <ErroTela key={pagina}>
+      <Suspense fallback={<p className="py-16 text-center text-sm" style={{ color: "var(--text-muted)" }}>Carregando a tela...</p>}>
+        <Componente />
+      </Suspense>
+    </ErroTela>
+  );
 }
 
 export function App() {

@@ -743,3 +743,78 @@ describe("Minhas matrículas", () => {
     expect(await regiao("Minha lista de vendas").findByText("Tabela sumiu")).toBeTruthy();
   });
 });
+
+describe("permissões (casos negativos) e detalhes", () => {
+  it("consultor: ?uid= de outro é ignorado e vai o próprio kommo_uid", async () => {
+    abrir("consultor", {}, "/minha_performance?uid=55");
+    await screen.findByRole("region", { name: "Saldo" });
+    expect(gets("/api/minha-performance/insights")).toEqual(["/api/minha-performance/insights?kommo_uid=42&campanha_id=7"]);
+    expect(gets("/api/minha-performance/agentes")).toEqual([]);
+  });
+
+  it("login do suporte: ?uid= é ignorado e fica na equipe", async () => {
+    abrir("suporte", {}, "/minha_performance?uid=55");
+    await screen.findByRole("region", { name: "Suporte comercial — time" });
+    expect(gets("/api/minha-performance/insights")).toEqual(["/api/minha-performance/insights?suporte_equipe=1&campanha_id=7"]);
+  });
+
+  it("Premiação sem ser admin vê 'Não conta' e não tem 'Contar venda'", async () => {
+    abrir("premiacao", {}, "/minha_performance?uid=55");
+    await screen.findByRole("region", { name: "Saldo" });
+    await abrirMatriculas();
+    const of = regiao("Matrículas oficiais");
+    expect(of.getByText("Não conta")).toBeTruthy();
+    expect(of.queryByRole("button", { name: "Contar venda" })).toBeNull();
+  });
+
+  it("admin: Desfazer manda DELETE com o RGM", async () => {
+    const contando = { ...OFICIAIS, matriculas: OFICIAIS.matriculas.map((m) => (m.outlier ? { ...m, conta_para_meta: true } : m)) };
+    abrir("admin", { "GET /api/minha-performance/matriculas": () => json(contando) }, "/minha_performance?uid=55");
+    await screen.findByRole("region", { name: "Saldo" });
+    await abrirMatriculas();
+    expect(regiao("Matrículas oficiais").getByText("✓ Contando")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Desfazer" }));
+    await waitFor(() => expect(chamadas.some((c) => c.metodo === "DELETE")).toBe(true));
+    const del = chamadas.find((c) => c.metodo === "DELETE")!;
+    expect(del.url).toBe("/api/comercial-rgm/outlier/contar-venda");
+    expect(JSON.parse(del.corpo!)).toEqual({ rgm: "99" });
+  });
+
+  it("trocar o consultor fecha a aba Matrículas: nada é buscado até abrir de novo", async () => {
+    abrir("admin", {}, "/minha_performance?uid=55");
+    await screen.findByRole("region", { name: "Saldo" });
+    await abrirMatriculas();
+    fireEvent.change(screen.getByLabelText("Consultor"), { target: { value: "42" } });
+    await waitFor(() => expect(gets("/api/minha-performance/insights").slice(-1)[0]).toContain("kommo_uid=42"));
+    await screen.findByRole("region", { name: "Saldo" });
+    expect(gets("/api/minha-performance/matriculas").some((u) => u.includes("kommo_uid=42"))).toBe(false);
+  });
+
+  it("selo da fila de aceites aparece mesmo sem meta diária", async () => {
+    abrir("consultor", { "GET /api/minha-performance/insights": () => json({ ...INSIGHTS, hoje: { meta: 0, realizadas: 0, aceites_fila: 3 } }) });
+    const pix = within(await screen.findByRole("region", { name: "PIX do dia" }));
+    expect(pix.getByText("3 aceites na fila total")).toBeTruthy();
+    expect(pix.getByText("Nenhuma meta PIX configurada para hoje. (3 aceites na fila total)")).toBeTruthy();
+  });
+
+  it("ranking sem medalha mostra a posição no quadro, como a antiga", async () => {
+    abrir("consultor", { "GET /api/minha-performance/insights": () => json({ ...INSIGHTS, ranking: { ...INSIGHTS.ranking!, posicao: 5 } }) });
+    const rk = within(await screen.findByRole("region", { name: "Ranking" }));
+    expect(rk.getAllByText("5°")).toHaveLength(2);
+  });
+
+  it("gráficos usam as cores do tema e são refeitos ao trocar o tema", async () => {
+    abrir();
+    await screen.findByRole("region", { name: "Timeline diária" });
+    const antes = graficos.length;
+    const tl = graficos.find((g) => g.data.datasets.some((s) => s.label === "Bônus R$"))! as unknown as {
+      options: { scales: Record<string, { ticks: { color?: string }; grid: { color?: string } }>; plugins: { legend: { labels: { color?: string } } } };
+    };
+    expect(tl.options.scales.x.ticks.color).toBeTruthy();
+    expect(tl.options.scales.y.grid.color).toBeTruthy();
+    expect(tl.options.plugins.legend.labels.color).toBeTruthy();
+    document.documentElement.classList.add("dark");
+    await waitFor(() => expect(graficos.length).toBeGreaterThan(antes));
+    document.documentElement.classList.remove("dark");
+  });
+});

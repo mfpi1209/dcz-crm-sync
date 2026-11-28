@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { api } from "../../api";
+import { api, ErroApi } from "../../api";
 import { Secao, Selo, TEXTO_FRACO } from "./comum";
 import { apiOk, classificarSituacao, data, mesCorrente, textoErro, ultimoPeriodo } from "./formato";
 import { ModalAjuste, TIPO_AJUSTE } from "./ModalAjuste";
@@ -160,7 +160,7 @@ export function Matriculas({ uid, admin, avisar }: { uid: number | null; admin: 
       }
       await cliente.invalidateQueries({ queryKey: ["mp", "oficiais"] });
     } catch (e) {
-      avisar(textoErro(e) || "Erro de rede ao atualizar contagem", true);
+      avisar(e instanceof ErroApi ? textoErro(e) : "Erro de rede ao atualizar contagem", true);
     }
   }
 
