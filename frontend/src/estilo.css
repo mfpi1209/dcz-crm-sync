@@ -56,6 +56,15 @@
   --shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
+/* Barras de rolagem e controles nativos seguem o tema (sem a barra branca do
+   Windows no escuro) e ficam finas, na cor das bordas. */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline) transparent;
+}
+
 body {
   font-family: "Inter", sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -164,8 +173,9 @@ h1, h2, h3 {
 .linha-menu .item-menu {
   padding-right: 2rem;
 }
+/* Passar o mouse é só um realce leve; o azul fica para a tela aberta. */
 .item-menu:hover {
-  background: var(--primary-light);
+  background: var(--surface-variant);
   color: var(--text-primary);
 }
 .item-menu[aria-current="page"] {
@@ -197,7 +207,7 @@ h1, h2, h3 {
   color: var(--text-secondary);
 }
 .grupo-menu:hover {
-  background: var(--primary-light);
+  background: var(--surface-variant);
   color: var(--text-primary);
 }
 .grupo-menu .seta-grupo {
@@ -216,10 +226,136 @@ h1, h2, h3 {
 }
 /* Subitens alinhados com o nome do grupo (depois do ícone). */
 .grupo-itens .item-menu {
-  padding-left: 2.6rem;
+  padding-left: 2.5rem;
 }
 .grupo-itens .item-menu[aria-current="page"]::before {
-  left: 1.6rem;
+  left: 1.5rem;
+}
+
+/* ---------- Controles das telas: todos com a mesma altura (36px) ---------- */
+
+.controle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.25rem;
+  padding: 0 0.875rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.controle:hover {
+  border-color: var(--outline);
+}
+.controle-primario {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--bg-card);
+}
+.controle-primario:hover {
+  filter: brightness(1.08);
+}
+.controle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Períodos: um bloco só, com a opção escolhida em destaque. */
+.segmentado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  height: 2.25rem;
+  padding: 0.2rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.segmentado button {
+  height: 100%;
+  padding: 0 0.75rem;
+  border-radius: 7px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.segmentado button:hover {
+  color: var(--text-primary);
+}
+.segmentado button[aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--bg-card);
+}
+
+/* Intervalo de datas: dois campos dentro de uma caixa só. */
+.intervalo {
+  display: inline-flex;
+  align-items: center;
+  height: 2.25rem;
+  padding: 0 0.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.intervalo input {
+  height: 100%;
+  padding: 0 0.25rem;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+.intervalo:focus-within {
+  border-color: var(--primary);
+}
+
+.controle:focus-visible,
+.segmentado button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* Tabela dentro do cartão: sem segunda borda, só linhas entre as linhas. */
+.tabela-cartao {
+  width: 100%;
+  font-size: 0.8125rem;
+  border-collapse: collapse;
+}
+.tabela-cartao th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.tabela-cartao td {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.tabela-cartao tr:last-child td {
+  border-bottom: 0;
+}
+.tabela-cartao th:first-child,
+.tabela-cartao td:first-child {
+  padding-left: 1.25rem;
+}
+.tabela-cartao th:last-child,
+.tabela-cartao td:last-child {
+  padding-right: 1.25rem;
+}
+.tabela-cartao tbody tr:hover td {
+  background: var(--surface-variant);
 }
 
 /* Estrela do item: aparece com o mouse ou com foco; sempre nas fixadas. */

@@ -121,22 +121,23 @@ export function BarraTopo({
   return (
     <header
       aria-label="Barra da tela"
-      className="flex items-center justify-between gap-4 px-4 md:px-8 py-4 border-b"
-      style={{ borderColor: "var(--border-subtle)" }}
+      className="sticky top-0 z-20 flex items-center justify-between gap-4 px-4 md:px-8 py-3 border-b"
+      style={{ borderColor: "var(--border-subtle)", background: "var(--bg-main)" }}
     >
       <div className="flex items-center gap-3 min-w-0">
         <button
           ref={refMenu}
           type="button"
-          className="botao-texto md:hidden shrink-0"
+          className="botao-icone md:hidden shrink-0"
+          aria-label="Menu"
           aria-expanded={menuAberto}
           aria-controls="menu-lateral"
           onClick={onMenu}
         >
+          {/* Só o ícone no celular: sobra espaço para o título. */}
           <span className="material-symbols-outlined" aria-hidden>
             {menuAberto ? "close" : "menu"}
           </span>
-          Menu
         </button>
         <div className="min-w-0">
           {grupo && (
