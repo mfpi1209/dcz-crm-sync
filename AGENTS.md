@@ -4,6 +4,30 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-28 — Fase 4: Dashboard Comercial Bwipo no front novo (`/app/bwipo_comercial`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar o dashboard comercial oficial (`_bwipo_comercial.html` + `bwipo_comercial.js`) para o front novo, com os mesmos números. As rotas `/api/bwipo/painel*` de `routes/bwipo_sync.py` não mudam; venda, dono da venda, evasão e conflitos continuam no servidor.
+- **Tela nova (`frontend/src/paginas/BwipoComercial.tsx` + `paginas/bwipo-comercial/`):**
+  - filtros numa linha: ciclo e turma comerciais (só preenchem De/Até e o nível, e já buscam, como `bwcCicloChanged`/`bwcTurmaChanged`), polo, nível, agente, De–Até e **Atualizar**. Polo, nível, agente e datas mexem num rascunho até o Atualizar; Atualizar sem mudança busca o painel de novo;
+  - período inicial: meta/campanha mais recente (`/api/comercial-rgm/metas?categoria=matriculas` + `/api/premiacao/campanhas-periodos`), senão do dia 1 até hoje;
+  - nenhuma consulta da tela tenta de novo sozinha (`retry: false`; produção usaria 2 novas tentativas, `tentarDeNovo` em `api.ts`);
+  - `GET /api/bwipo/painel` só na abertura, no Atualizar, no ciclo/turma e depois de uma ação que grava (como a antiga). A cada resposta: YTD (`/extras`, mesmos parâmetros) e `POST /conflitos` (RGMs do recorte + período). Sem novas tentativas automáticas nessas rotas; `signal` do TanStack em todas as consultas;
+  - destaque (matrículas, em curso, RGM fora do padrão, YTD), evasão com chips e lista, fora do padrão com prefixos e lista, conflitos com "Creditar para" e Desfazer, média diária, ticket, vs 6 meses e vs 1 ano;
+  - matrículas por dia (clique filtra ranking, evasão e fora pelo dia; "limpar"), ranking (mesma conta do `_bwcRankingRows` ao filtrar dia), matrículas por agente (15 primeiros) e por polo;
+  - detalhe do agente (CPF/telefone de `POST /contatos`, busca, CSV igual, Contagem), Consultar RGM (candidatos, fixar, Atualizar do candidato pelo mini-sync, desfazer, contar venda), Atualizar lead (`POST /mini-sync`: número do card ou RGM de 8 dígitos, escolha quando há vários), Duplicatas, Sem data, Diagnóstico e Sync agentes (admin);
+  - confirmações e mensagens iguais às da antiga (fixar, desfazer, contar/deixar de contar). Mini-sync não tinha confirmação e continua sem.
+  - **Quem vê o quê:** admin = `me.role === "admin"` (como `body[data-role]`). Só admin vê Contar venda/Deixar de contar e Sync agentes; o usuário comum nunca chama `contar-venda`, `sync-agentes`, `consultores` nem `meta-agente`.
+- **Diferenças de propósito:**
+  - gráficos em colunas/barras de CSS (sem `chart.js`): por dia em colunas clicáveis (era linha), por agente em barras proporcionais;
+  - conflito sem decisão ganha a opção "Escolha o consultor" no seletor (na antiga, o primeiro consultor da lista não podia ser escolhido sem antes trocar);
+  - avisos "Sincronizando…" viram estado do botão; erros e sucessos vão para o toast do front novo;
+  - período de fallback com a data local (a antiga usava `toISOString`, que vira o dia depois das 21h);
+  - Ver Performance abre `/#minha_performance` sem o consultor pré-selecionado;
+  - o atalho "Atualizar" ao lado da busca de RGM no ranking saiu (repetia o "Atualizar lead"); o botão "Atualizar lead" fica na linha de ferramentas.
+- **Não reproduzido (fica na tela atual; o botão "Mais na tela atual" abre `/#bwipo_comercial`):** Metas (modal de metas e meta do consultor), Editar consultores (nome, ocultar, excluir, tombamento, depara Bwipo), Upload, Sync Kommo, Histórico, Congelar, + Novo ciclo, + Nova turma, Ver turmas e Solicitações (com o selo de pendentes). São painéis do Comercial antigo (`comercial_rgm.js`) que a antiga só reaproveitava, ou editores grandes; ficam para uma etapa própria. Nenhum número da tela depende deles.
+- **Menu antigo:** o item continua na tela antiga até o usuário aprovar (`TELAS_APROVADAS` segue só `page_views`).
+- **Testes:** `paginas/BwipoComercial.test.tsx` (37: formato, carga e período, números, título, erro/403/vazio, filtros e URLs exatas, ciclo/turma, ranking e dia, polos, evasão, fora do padrão, conflitos com confirmação e corpos, consultar RGM, mini-sync, detalhe do agente, duplicatas, sem data, diagnóstico, sync agentes, modo comum, contagem exata do painel/extras/conflitos depois de gravar e uma chamada só em erro 500 com a regra de novas tentativas de produção) e `tests/test_front_novo.py::test_bwipo_comercial_migrado_mas_menu_antigo_ainda_na_tela_antiga`.
+
 ### 2026-11-28 — Fase 4: Minha Performance no front novo (`/app/minha_performance`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** migrar a Minha Performance (home dos consultores) para o front novo, com os mesmos dados, números e regras de quem vê o quê da antiga (`_minha_performance.html` + `minha_performance.js`). `routes/minha_performance.py` não muda.

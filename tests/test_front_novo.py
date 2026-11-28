@@ -201,6 +201,14 @@ def test_repasse_migrado_mas_menu_antigo_ainda_na_tela_antiga():
     assert "repasse" not in TELAS_APROVADAS
 
 
+def test_bwipo_comercial_migrado_mas_menu_antigo_ainda_na_tela_antiga():
+    """Dashboard Comercial Bwipo está no front novo; o link do menu antigo só troca após a aprovação."""
+    assert "bwipo_comercial" in _telas_novas()
+    assert "bwipo_comercial" not in TELAS_APROVADAS
+    html = (RAIZ / "templates" / "partials" / "_sidebar.html").read_text(encoding="utf-8")
+    assert 'href="/app/bwipo_comercial"' not in html
+
+
 def test_dashboard_migrado_mas_menu_antigo_ainda_na_tela_antiga():
     """Dashboard (home) está no front novo; o menu antigo só troca após a aprovação."""
     assert "dashboard" in _telas_novas()

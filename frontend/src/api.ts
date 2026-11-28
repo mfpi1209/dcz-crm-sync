@@ -52,3 +52,11 @@ export async function api<T>(caminho: string, init?: RequestInit): Promise<T> {
   }
   return (await r.json()) as T;
 }
+
+/**
+ * Regra opcional de novas tentativas (401/403 não melhoram tentando de novo). O main.tsx usa
+ * `retry: false` global (como o painel antigo); uma tela que queira repetir pode usar esta regra.
+ */
+export function tentarDeNovo(tentativas: number, erro: unknown): boolean {
+  return !(erro instanceof ErroApi && (erro.status === 401 || erro.status === 403)) && tentativas < 2;
+}

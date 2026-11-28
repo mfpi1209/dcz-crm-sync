@@ -1,4 +1,5 @@
 import { type ComponentType, lazy } from "react";
+import { BwipoComercial } from "./paginas/BwipoComercial";
 import { CompararCursos, InfoCursos, LocalizacaoPolos, RecomendacaoCursos } from "./paginas/Ferramentas";
 import { Repasse } from "./paginas/Repasse";
 import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
@@ -19,6 +20,7 @@ const MinhaPerformance = lazy(() => import("./paginas/MinhaPerformance").then((m
 export const TELAS_NOVAS: Record<string, ComponentType> = {
   page_views: UsoDoDashboard, // etapa 3 (27/11): piloto
   repasse: Repasse, // 28/11: no menu antigo, o link só troca depois da aprovação
+  bwipo_comercial: BwipoComercial, // 28/11: idem, aguarda aprovação
   minha_performance: MinhaPerformance, // 28/11: idem
   dashboard: Dashboard, // 28/11: idem (supervisores ainda abrem o painel atual)
   inadimplencia: Inadimplencia, // 28/11: idem, aguarda aprovação
