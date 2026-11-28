@@ -85,9 +85,10 @@ function Painel({ itens, onFechar }: { itens: ItemBusca[]; onFechar: () => void 
   }
 
   // Teclado no documento: se o foco sair do campo (clique no painel), Esc e Tab continuam valendo.
+  // Na captura, para tratar o Esc antes da gaveta do menu (que respeita defaultPrevented).
   useEffect(() => {
-    document.addEventListener("keydown", tecla);
-    return () => document.removeEventListener("keydown", tecla);
+    document.addEventListener("keydown", tecla, true);
+    return () => document.removeEventListener("keydown", tecla, true);
   });
 
   const idOpcao = (i: number) => `${id}-op-${i}`;

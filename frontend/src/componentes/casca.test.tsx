@@ -32,24 +32,31 @@ function me(): Me {
 
 interface Opcoes {
   caminho?: string;
-  fixadas?: { fixadas: string[]; mais_usadas: string[] };
+  fixadas?: unknown;
   avisos?: number;
+  usuario?: Me;
+  /** Resposta do PUT das fixadas; sem ela o servidor aceita a lista. */
+  respostaPut?: () => Response;
 }
 
 let puts: unknown[];
 
 function abrir(opcoes: Opcoes = {}) {
   puts = [];
+  // Como o servidor de verdade, guarda a lista quando o PUT dá certo (o front relê depois).
+  let salvo: unknown = opcoes.fixadas ?? { fixadas: [], mais_usadas: [] };
   vi.spyOn(globalThis, "fetch").mockImplementation(async (entrada, init) => {
     const url = String(entrada);
-    if (url === "/api/me") return json(me());
+    if (url === "/api/me") return json(opcoes.usuario ?? me());
     if (url === "/api/me/fixadas") {
       if (init?.method === "PUT") {
         const corpo = JSON.parse(String(init.body));
         puts.push(corpo);
+        if (opcoes.respostaPut) return opcoes.respostaPut();
+        salvo = { ...(salvo as object), fixadas: corpo.paginas };
         return json({ fixadas: corpo.paginas });
       }
-      return json(opcoes.fixadas ?? { fixadas: [], mais_usadas: [] });
+      return json(salvo);
     }
     if (url === "/api/avisos/nao-lidos") return json({ count: opcoes.avisos ?? 0 });
     if (url.startsWith("/api/page-views/stats")) {
@@ -213,6 +220,69 @@ describe("casca nova", () => {
     expect(botao.getAttribute("aria-expanded")).toBe("true");
     fireEvent.keyDown(document, { key: "Escape" });
     expect(botao.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("celular tem uma barra só: o botão Menu fica na barra da tela", async () => {
+    abrir({ caminho: "/page_views" });
+    const barra = within(await screen.findByRole("banner", { name: "Barra da tela" }));
+    const botao = barra.getByRole("button", { name: "Menu" });
+    expect(botao.getAttribute("aria-controls")).toBe("menu-lateral");
+    expect(botao.className).toContain("md:hidden");
+    expect(document.querySelectorAll("header").length).toBe(1);
+  });
+
+  it("Esc devolve o foco ao botão Menu", async () => {
+    abrir();
+    const botao = await screen.findByRole("button", { name: "Menu" });
+    fireEvent.click(botao);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.activeElement).toBe(botao);
+  });
+
+  it("Esc com a busca aberta sobre a gaveta fecha só a busca", async () => {
+    abrir();
+    const botao = await screen.findByRole("button", { name: "Menu" });
+    fireEvent.click(botao);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    const campo = await screen.findByRole("combobox", { name: "Buscar tela" });
+    fireEvent.keyDown(campo, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Buscar tela" })).toBeNull();
+    expect(botao.getAttribute("aria-expanded")).toBe("true");
+    // Segundo Esc fecha a gaveta.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(botao.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it.each([
+    [400, json({ error: "Tela não permitida" }, 400), "Tela não permitida"],
+    [500, new Response("", { status: 500 }), "Não deu para salvar as fixadas. Tente de novo."],
+  ])("PUT %s: aviso discreto aparece e a estrela volta", async (_status, resposta, texto) => {
+    abrir({ caminho: "/page_views", fixadas: { fixadas: [], mais_usadas: [] }, respostaPut: () => resposta });
+    const barra = within(await screen.findByRole("banner", { name: "Barra da tela" }));
+    fireEvent.click(await barra.findByRole("button", { name: "Fixar esta tela" }));
+    await waitFor(() => expect(barra.getByRole("status").textContent).toBe(texto));
+    const estrela = barra.getByRole("button", { name: "Fixar esta tela" });
+    expect(estrela.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("fixadas fora do formato: menu sem a seção", async () => {
+    abrir({ fixadas: {} });
+    const menu = await menuPrincipal();
+    expect(menu.getByRole("link", { name: "Dashboard" })).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(menu.queryByRole("list", { name: "Fixadas" })).toBeNull();
+    expect(menu.queryByRole("list", { name: "Mais usadas" })).toBeNull();
+  });
+
+  it("sem estrela em tela fora do menu (grupo TI oculto para quem não é admin)", async () => {
+    const usuario = me();
+    usuario.role = "consultor";
+    usuario.nav = { ...usuario.nav, is_admin: false, secoes: { comercial: true, ti: false } };
+    abrir({ caminho: "/page_views", usuario, fixadas: { fixadas: [], mais_usadas: [] } });
+    const barra = within(await screen.findByRole("banner", { name: "Barra da tela" }));
+    expect(barra.getByRole("heading", { level: 1, name: "Uso do Dashboard" })).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(barra.queryByRole("button", { name: /Fixar|Desafixar/ })).toBeNull();
   });
 
   it("rodapé com usuário e sair", async () => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type Ref, useState } from "react";
 import { useAvisosNaoLidos } from "../avisos";
 import { MAX_FIXADAS, useFixadas } from "../fixadas";
 
@@ -83,26 +83,72 @@ function BotaoTema() {
   );
 }
 
+/** Aviso discreto quando fixar/desafixar falha (a estrela já voltou ao estado anterior). */
+function AvisoFixadas() {
+  const { erro } = useFixadas();
+  return (
+    <span
+      role="status"
+      className="text-xs max-w-[16rem] truncate"
+      style={{ color: "var(--text-muted)" }}
+      title={erro ?? undefined}
+    >
+      {erro}
+    </span>
+  );
+}
+
 /**
- * Barra de cima de cada tela: grupo (pequeno) e título, e à direita a estrela
- * (só em tela migrada: `pagina`), o sino de avisos e o tema.
+ * Barra de cima de cada tela: no celular, o botão que abre a gaveta do menu;
+ * grupo (pequeno) e título; à direita o aviso das fixadas, a estrela (só em
+ * tela migrada: `pagina`), o sino de avisos e o tema.
  */
-export function BarraTopo({ titulo, grupo, pagina }: { titulo: string; grupo?: string; pagina?: string }) {
+export function BarraTopo({
+  titulo,
+  grupo,
+  pagina,
+  menuAberto,
+  onMenu,
+  refMenu,
+}: {
+  titulo: string;
+  grupo?: string;
+  pagina?: string;
+  menuAberto: boolean;
+  onMenu: () => void;
+  refMenu?: Ref<HTMLButtonElement>;
+}) {
   return (
     <header
       aria-label="Barra da tela"
       className="flex items-center justify-between gap-4 px-4 md:px-8 py-4 border-b"
       style={{ borderColor: "var(--border-subtle)" }}
     >
-      <div className="min-w-0">
-        {grupo && (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {grupo}
-          </p>
-        )}
-        <h1 className="text-lg md:text-xl truncate">{titulo}</h1>
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          ref={refMenu}
+          type="button"
+          className="botao-texto md:hidden shrink-0"
+          aria-expanded={menuAberto}
+          aria-controls="menu-lateral"
+          onClick={onMenu}
+        >
+          <span className="material-symbols-outlined" aria-hidden>
+            {menuAberto ? "close" : "menu"}
+          </span>
+          Menu
+        </button>
+        <div className="min-w-0">
+          {grupo && (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {grupo}
+            </p>
+          )}
+          <h1 className="text-lg md:text-xl truncate">{titulo}</h1>
+        </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        <AvisoFixadas />
         {pagina && <Estrela pagina={pagina} />}
         <Sino />
         <BotaoTema />

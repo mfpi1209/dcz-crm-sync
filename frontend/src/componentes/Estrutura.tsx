@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useMatch } from "react-router-dom";
 import { ErroApi } from "../api";
-import { type DadosFixadas, useFixadas } from "../fixadas";
+import { useFixadas } from "../fixadas";
 import { useMe } from "../me";
 import { grupoDaTela, montarMenu } from "../menu";
 import { NOMES_TELAS_NOVAS } from "../telas";
@@ -10,19 +10,14 @@ import { BarraTopo } from "./BarraTopo";
 import { BuscaTelas, type ItemBusca } from "./BuscaTelas";
 import { MenuLateral } from "./MenuLateral";
 
-/** Só usa a resposta das fixadas se tiver o formato esperado; senão o menu segue sem a seção. */
-function fixadasValidas(dados: DadosFixadas | null): DadosFixadas | null {
-  return dados && Array.isArray(dados.fixadas) && Array.isArray(dados.mais_usadas) ? dados : null;
-}
-
 /**
  * Casca do front novo: menu lateral (gaveta no celular), barra de cima com o
  * título da rota e, embaixo, a tela.
  */
 export function Estrutura() {
   const me = useMe();
-  const { dados } = useFixadas();
-  const fixadas = fixadasValidas(dados);
+  // useFixadas já descarta resposta fora do formato (dados = null).
+  const { dados: fixadas } = useFixadas();
   const local = useLocation();
   const pagina = useMatch("/:pagina")?.params.pagina ?? null;
   const [gavetaAberta, setGavetaAberta] = useState(false);
@@ -60,7 +55,8 @@ export function Estrutura() {
   useEffect(() => {
     if (!gavetaAberta) return;
     function tecla(e: KeyboardEvent) {
-      if (e.key === "Escape") {
+      // Busca aberta trata o Esc antes (e marca defaultPrevented): fecha só ela.
+      if (e.key === "Escape" && !e.defaultPrevented) {
         setGavetaAberta(false);
         botaoMenu.current?.focus();
       }
@@ -87,31 +83,12 @@ export function Estrutura() {
   const conhecida = pagina !== null && Object.prototype.hasOwnProperty.call(TITULOS, pagina) ? pagina : null;
   const titulo = inicio ? "Início" : conhecida ? TITULOS[conhecida] : "Painel eduit";
   const grupo = conhecida ? grupoDaTela(menu, conhecida)?.titulo : undefined;
-  // Estrela só em tela migrada que a pessoa vê.
+  // Estrela só em tela migrada que está no menu (mesma regra `visivel` do servidor).
   const comEstrela =
-    !!conhecida && NOMES_TELAS_NOVAS.has(conhecida) && me.data.nav.paginas.includes(conhecida);
+    !!conhecida && NOMES_TELAS_NOVAS.has(conhecida) && itensBusca.some((i) => i.pagina === conhecida);
 
   return (
     <div className="min-h-screen md:flex">
-      <header
-        aria-label="Topo do celular"
-        className="md:hidden flex items-center justify-between px-4 py-3 border-b casca-menu"
-        style={{ borderColor: "var(--border-subtle)" }}
-      >
-        <a href="/" className="font-headline text-lg font-extrabold text-primary">eduit.</a>
-        <button
-          ref={botaoMenu}
-          type="button"
-          className="botao-texto"
-          aria-expanded={gavetaAberta}
-          aria-controls="menu-lateral"
-          onClick={() => setGavetaAberta((v) => !v)}
-        >
-          <span className="material-symbols-outlined" aria-hidden>{gavetaAberta ? "close" : "menu"}</span>
-          Menu
-        </button>
-      </header>
-
       {gavetaAberta && (
         <div className="md:hidden fixed inset-0 z-30 fundo-gaveta" aria-hidden onClick={() => setGavetaAberta(false)} />
       )}
@@ -119,7 +96,7 @@ export function Estrutura() {
       <aside
         id="menu-lateral"
         aria-label="Menu"
-        className={`casca-menu ${gavetaAberta ? "flex" : "hidden"} md:flex flex-col fixed md:sticky top-0 left-0 z-40 h-screen w-[248px] max-w-[85vw] shrink-0 border-r`}
+        className={`casca-menu ${gavetaAberta ? "flex" : "hidden"} md:flex flex-col fixed md:sticky top-0 left-0 z-40 h-dvh w-[248px] max-w-[85vw] shrink-0 border-r`}
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <MenuLateral
@@ -132,7 +109,14 @@ export function Estrutura() {
       </aside>
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <BarraTopo titulo={titulo} grupo={grupo} pagina={comEstrela && conhecida ? conhecida : undefined} />
+        <BarraTopo
+          titulo={titulo}
+          grupo={grupo}
+          pagina={comEstrela && conhecida ? conhecida : undefined}
+          menuAberto={gavetaAberta}
+          onMenu={() => setGavetaAberta((v) => !v)}
+          refMenu={botaoMenu}
+        />
         <main className="flex-1 min-w-0 p-4 md:p-8">
           <Outlet />
         </main>
