@@ -201,6 +201,12 @@ def test_repasse_migrado_mas_menu_antigo_ainda_na_tela_antiga():
     assert "repasse" not in TELAS_APROVADAS
 
 
+def test_dashboard_migrado_mas_menu_antigo_ainda_na_tela_antiga():
+    """Dashboard (home) está no front novo; o menu antigo só troca após a aprovação."""
+    assert "dashboard" in _telas_novas()
+    assert "dashboard" not in TELAS_APROVADAS
+
+
 # Roteiro de cada tela (AGENTS.md, 28/11): 1) entra em TELAS_NOVAS e é publicada;
 # 2) o usuário compara em produção e aprova; 3) só então o item do _sidebar.html
 # passa a /app/<tela>. Por isso a regra do link vale só para as telas já

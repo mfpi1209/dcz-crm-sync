@@ -45,6 +45,34 @@
   --grafico-8: #84cc16;
   --grafico-9: #0ea5e9;
   --grafico-10: #f97316;
+
+  /* Estados e destaques (subir/descer, aviso, transferência). */
+  --positivo: #059669;
+  --fundo-positivo: rgba(16, 185, 129, 0.12);
+  --negativo: #e11d48;
+  --aviso: #d97706;
+  --destaque: #7c3aed;
+  --texto-sobre-cor: #fff;
+
+  /* Gráficos (Dashboard): séries; a grade é a --grafico-grade acima. */
+  --grafico-novos: #3b82f6;
+  --grafico-rematricula: #10b981;
+  --grafico-regresso: #f59e0b;
+  --grafico-recompra: #06b6d4;
+  --grafico-total: #2563eb;
+
+  /* Etapas do funil de vendas (mesmas cores do painel atual, nos dois temas). */
+  --funil-sem_resposta: #f43f5e;
+  --funil-em_atendimento: #14b8a6;
+  --funil-aguardando_resposta: #a855f7;
+  --funil-aguardando_inscricao: #3b82f6;
+  --funil-inscricao: #6366f1;
+  --funil-processo_seletivo: #8b5cf6;
+  --funil-em_processo: #06b6d4;
+  --funil-aprovado_reprovado: #f59e0b;
+  --funil-boleto_enviado: #84cc16;
+  --funil-pagamento_confirmado: #059669;
+  --funil-aceite: #10b981;
 }
 
 .dark {
@@ -85,6 +113,19 @@
   --grafico-8: #a3e635;
   --grafico-9: #38bdf8;
   --grafico-10: #fb923c;
+
+  --positivo: #34d399;
+  --fundo-positivo: rgba(52, 211, 153, 0.14);
+  --negativo: #fb7185;
+  --aviso: #fbbf24;
+  --destaque: #c4b5fd;
+  --texto-sobre-cor: #fff;
+
+  --grafico-novos: #60a5fa;
+  --grafico-rematricula: #34d399;
+  --grafico-regresso: #fbbf24;
+  --grafico-recompra: #22d3ee;
+  --grafico-total: #93c5fd;
 }
 
 /* Barras de rolagem e controles nativos seguem o tema (sem a barra branca do
@@ -470,7 +511,8 @@ h1, h2, h3 {
 .cartao-agente:hover {
   border-color: var(--outline);
 }
-.cartao-agente[aria-pressed="true"] {
+.cartao-agente[aria-pressed="true"],
+.cartao-agente[data-marcado="true"] {
   border-color: var(--primary);
   background: var(--primary-light);
   box-shadow: 0 0 0 1px var(--primary);
