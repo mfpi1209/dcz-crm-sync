@@ -93,19 +93,29 @@ describe("Ferramentas em iframe", () => {
     expect(screen.getByRole("main").className).not.toContain("px-4");
     expect(quadro.className).toContain("h-full");
   });
+
+  it("tela comum (page_views) mantém o padding do main e a coluna sem h-dvh", async () => {
+    abrir("page_views", ["page_views"]);
+    await screen.findByRole("main");
+    const main = screen.getByRole("main");
+    expect(main.className).toContain("px-4");
+    expect(main.parentElement?.className).not.toContain("h-dvh");
+    expect(document.querySelector("iframe")).toBeNull();
+  });
 });
 
 describe("FerramentaIframe", () => {
   it("sem URL: mensagem amigável e nenhum iframe", () => {
     render(<FerramentaIframe titulo="Comparar cursos" url="" />);
-    expect(screen.getByText("Comparar cursos ainda não está configurada")).toBeTruthy();
+    expect(screen.getByText("Esta ferramenta ainda não está configurada.")).toBeTruthy();
     expect(document.querySelector("iframe")).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("URL nula também é não configurada", () => {
     render(<FerramentaIframe titulo="X" url={null} />);
-    expect(screen.getByText("X ainda não está configurada")).toBeTruthy();
+    expect(screen.getByText("X")).toBeTruthy();
+    expect(screen.getByText("Esta ferramenta ainda não está configurada.")).toBeTruthy();
   });
 
   it("trocar a URL volta ao estado de carregando", () => {

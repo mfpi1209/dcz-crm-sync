@@ -21,9 +21,9 @@ export function FerramentaIframe({ titulo, url }: Props) {
     return (
       <div className="h-full flex items-center justify-center p-6">
         <div className="cartao max-w-md text-center">
-          <p className="font-semibold">{titulo} ainda não está configurada</p>
+          <p className="font-semibold">{titulo}</p>
           <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-            O endereço desta ferramenta não foi definido. Fale com a equipe de TI.
+            Esta ferramenta ainda não está configurada.
           </p>
         </div>
       </div>

@@ -10,7 +10,7 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 - **Antigo → novo:** cada tela antiga é um iframe cujo `src` é `/static/eduit/app.html#<hash>` (fixo no JS, sem servidor nem variável de ambiente): `comparar`, `recomendacao`, `localizacao`, `informacoes-cursos`. A nova usa exatamente os mesmos endereços (`paginas/Ferramentas.tsx`).
 - **Componente reutilizável (`paginas/ferramentas/FerramentaIframe.tsx`):** iframe com `title` acessível, sobreposição discreta "Carregando…" até o `load` (volta ao trocar a URL) e, sem URL, aviso amigável em cartão (sem iframe).
 - **Tela cheia:** `telas.tsx` exporta `TELAS_CHEIAS`; nessas telas a `Estrutura` tira o padding do `main` e dá à coluna `h-dvh`, então o iframe encosta nas bordas e a altura é a janela menos a barra de cima (a antiga usava `calc(100vh - 56px)`).
-- **Diferenças de propósito:** fundo do iframe e da sobreposição seguem o tema (a antiga fixava `#0f172a`); o estado "não configurada" é do componente (hoje as 4 URLs são fixas, então não aparece na prática).
+- **Diferenças de propósito:** fundo do iframe e da sobreposição seguem o tema (a antiga fixava `#0f172a`); a antiga mantinha o iframe montado enquanto escondido (guardava o estado ao trocar de aba) e a nova remonta e recarrega a cada visita; o estado "não configurada" é do componente (hoje as 4 URLs são fixas, então não aparece na prática).
 - **Menu antigo:** os links do `_sidebar.html` continuam como estão, até aprovação.
 - **Testes:** `paginas/Ferramentas.test.tsx` (10): URL e `title` de cada tela, carregando → carregado, permissão, nenhuma rota extra além da casca, tela cheia, sem URL, troca de URL.
 
