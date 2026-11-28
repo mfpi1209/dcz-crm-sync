@@ -439,7 +439,8 @@
                     </a>
                     {% endif %}
                     {% if nav_can('page_views') %}
-                    <a href="#page_views" onclick="navigate('page_views')" class="sidebar-link sidebar-sub" data-page="page_views">
+                    {# Fase 4 (27/11): tela migrada, abre no front novo. A antiga segue em /#page_views. #}
+                    <a href="/app/page_views" class="sidebar-link sidebar-sub" data-page="page_views">
                         <span class="material-symbols-outlined text-base">insights</span>
                         Uso do Dashboard
                     </a>

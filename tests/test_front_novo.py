@@ -182,3 +182,25 @@ def test_versoes_exatas_no_package_json():
         for nome, versao in pkg[secao].items():
             assert re.fullmatch(r"\d+\.\d+\.\d+", versao), f"{nome}@{versao}"
     assert (RAIZ / "frontend" / "package-lock.json").is_file()
+
+
+# ── Telas migradas: o menu do painel atual aponta para o front novo ────────
+def _telas_novas() -> set[str]:
+    txt = (RAIZ / "frontend" / "src" / "telas.tsx").read_text(encoding="utf-8")
+    bloco = txt.split("TELAS_NOVAS: Record<string, ComponentType> = {", 1)[1].split("};", 1)[0]
+    return set(re.findall(r"^\s*([a-z_-]+):", bloco, re.M))
+
+
+def test_ha_tela_migrada():
+    assert "page_views" in _telas_novas()
+
+
+def test_menu_antigo_leva_as_telas_migradas_ao_front_novo():
+    """Ao migrar uma tela, o item do _sidebar.html passa a abrir /app/<tela>."""
+    html = (RAIZ / "templates" / "partials" / "_sidebar.html").read_text(encoding="utf-8")
+    for tela in _telas_novas():
+        links = re.findall(rf'<a [^>]*data-page="{re.escape(tela)}"[^>]*>', html)
+        assert links, tela
+        for a in links:
+            assert f'href="/app/{tela}"' in a, a
+            assert "onclick=" not in a, a   # sem o navigate() do painel antigo
