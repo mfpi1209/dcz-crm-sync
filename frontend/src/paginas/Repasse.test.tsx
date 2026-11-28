@@ -255,41 +255,136 @@ describe("Repasse (admin)", () => {
     expect(urls("/api/repasse/agentes").length).toBe(antes);
   });
 
-  it("trocar ciclo atualiza turmas e refaz a busca", async () => {
+  it("trocar ciclo atualiza turmas; a busca só vai no Buscar", async () => {
     abrir();
     await esperarAgentes();
+    const antes = urls("/api/repasse/agentes").length;
     const turma = screen.getByLabelText("Turma") as HTMLSelectElement;
     expect([...turma.options].map((o) => o.value)).toEqual(["", "T1", "T2", "T9"]);
     fireEvent.change(screen.getByLabelText("Ciclo"), { target: { value: "2026.1" } });
     expect([...turma.options].map((o) => o.value)).toEqual(["", "T9"]);
-    await waitFor(() => expect(ultima("/api/repasse/agentes")).toBe("/api/repasse/agentes?ciclo=2026.1&tipo=Mensalidade"));
     fireEvent.change(turma, { target: { value: "T9" } });
+    // mexer nos selects sozinho não chama a rota pesada de agentes nem a planilha
+    await new Promise((r) => setTimeout(r, 50));
+    expect(urls("/api/repasse/agentes").length).toBe(antes);
+    expect(urls("/api/repasse/planilha").some((u) => u.includes("ciclo="))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     await waitFor(() =>
       expect(ultima("/api/repasse/agentes")).toBe("/api/repasse/agentes?ciclo=2026.1&tipo=Mensalidade&turma=T9"),
     );
-    // a planilha segue os mesmos filtros
+    expect(urls("/api/repasse/agentes").length).toBe(antes + 1);
+    // a planilha segue os mesmos filtros aplicados
     await waitFor(() =>
       expect(ultima("/api/repasse/planilha")).toBe("/api/repasse/planilha?page=1&ciclo=2026.1&tipo=Mensalidade&turma=T9"),
     );
   });
 
-  it("trocar filtro fecha o detalhe aberto", async () => {
+  it("Buscar com o mesmo filtro busca de novo agentes, planilha e matriculados", async () => {
+    abrir();
+    await esperarAgentes();
+    await regiao("Matriculados").findByText("99990000");
+    const n = (p: string) => urls(p).length;
+    const antes = { ag: n("/api/repasse/agentes"), pl: n("/api/repasse/planilha"), mt: n("/api/repasse/matriculados") };
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(n("/api/repasse/agentes")).toBe(antes.ag + 1));
+    await waitFor(() => expect(n("/api/repasse/planilha")).toBe(antes.pl + 1));
+    await waitFor(() => expect(n("/api/repasse/matriculados")).toBe(antes.mt + 1));
+    expect(ultima("/api/repasse/agentes")).toBe("/api/repasse/agentes?tipo=Mensalidade");
+  });
+
+  it("Buscar fecha o detalhe aberto; mexer só no select não fecha", async () => {
     abrir();
     await esperarAgentes();
     fireEvent.click(screen.getByRole("button", { name: /Ana Souza/ }));
     await screen.findByRole("region", { name: "Detalhe de Ana Souza" });
     fireEvent.change(screen.getByLabelText("Ciclo"), { target: { value: "2026.2" } });
+    expect(screen.getByRole("region", { name: "Detalhe de Ana Souza" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     expect(screen.queryByRole("region", { name: "Detalhe de Ana Souza" })).toBeNull();
   });
 
-  it("Limpar volta os filtros ao padrão", async () => {
+  it("Atualizar busca agentes, planilha e matriculados de novo, sem filtros nem taxa", async () => {
     abrir();
     await esperarAgentes();
+    await regiao("Matriculados").findByText("99990000");
+    const n = (p: string) => urls(p).length;
+    const antes = {
+      ag: n("/api/repasse/agentes"),
+      pl: n("/api/repasse/planilha"),
+      mt: n("/api/repasse/matriculados"),
+      fi: n("/api/repasse/filtros"),
+      tx: n("/api/repasse/taxa"),
+    };
+    // rascunho não aplicado não entra no Atualizar
+    fireEvent.change(screen.getByLabelText("Ciclo"), { target: { value: "2026.1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    await waitFor(() => expect(n("/api/repasse/agentes")).toBe(antes.ag + 1));
+    await waitFor(() => expect(n("/api/repasse/planilha")).toBe(antes.pl + 1));
+    await waitFor(() => expect(n("/api/repasse/matriculados")).toBe(antes.mt + 1));
+    expect(ultima("/api/repasse/agentes")).toBe("/api/repasse/agentes?tipo=Mensalidade");
+    expect(n("/api/repasse/filtros")).toBe(antes.fi);
+    expect(n("/api/repasse/taxa")).toBe(antes.tx);
+  });
+
+  it("Limpar volta os filtros ao padrão, aplica e zera planilha e matriculados", async () => {
+    abrir();
+    await esperarAgentes();
+    const pl = regiao("Planilha de recebimentos");
+    const mt = regiao("Matriculados");
+    await mt.findByText("99990000");
+    // filtros de cima aplicados
     fireEvent.change(screen.getByLabelText("Ciclo"), { target: { value: "2026.1" } });
     fireEvent.change(screen.getByLabelText("Tipo de pagamento"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(ultima("/api/repasse/agentes")).toBe("/api/repasse/agentes?ciclo=2026.1"));
+    fireEvent.change(screen.getByLabelText("Buscar consultor"), { target: { value: "bru" } });
+    // painéis com busca e filtros
+    fireEvent.change(pl.getByLabelText("Buscar RGM na planilha"), { target: { value: "1111" } });
+    fireEvent.change(mt.getByLabelText("Buscar RGM nos matriculados"), { target: { value: "9999" } });
+    fireEvent.change(mt.getByLabelText("Pagamento"), { target: { value: "sim" } });
+    fireEvent.change(mt.getByLabelText("Mês de ingresso"), { target: { value: "2026-10" } });
+    fireEvent.change(mt.getByLabelText("Dia"), { target: { value: "2026-10-01" } });
+    fireEvent.change(mt.getByLabelText("Nível"), { target: { value: "PÓS" } });
+    fireEvent.change(mt.getByLabelText("Tipo de matrícula"), { target: { value: "RETORNO" } });
+    await waitFor(() => expect(ultima("/api/repasse/matriculados")).toContain("q=9999"));
+
     fireEvent.click(screen.getByRole("button", { name: "Limpar" }));
     expect((screen.getByLabelText("Ciclo") as HTMLSelectElement).value).toBe("");
     expect((screen.getByLabelText("Tipo de pagamento") as HTMLSelectElement).value).toBe("Mensalidade");
+    expect((screen.getByLabelText("Buscar consultor") as HTMLInputElement).value).toBe("");
+    const pl2 = regiao("Planilha de recebimentos");
+    const mt2 = regiao("Matriculados");
+    expect((pl2.getByLabelText("Buscar RGM na planilha") as HTMLInputElement).value).toBe("");
+    expect((mt2.getByLabelText("Buscar RGM nos matriculados") as HTMLInputElement).value).toBe("");
+    expect((mt2.getByLabelText("Pagamento") as HTMLSelectElement).value).toBe("");
+    expect((mt2.getByLabelText("Mês de ingresso") as HTMLSelectElement).value).toBe("");
+    expect((mt2.getByLabelText("Dia") as HTMLInputElement).value).toBe("");
+    expect((mt2.getByLabelText("Nível") as HTMLSelectElement).value).toBe("");
+    expect((mt2.getByLabelText("Tipo de matrícula") as HTMLSelectElement).value).toBe("NOVA MATRICULA");
+    // padrão aplicado de novo
+    await waitFor(() => expect(ultima("/api/repasse/agentes")).toBe("/api/repasse/agentes?tipo=Mensalidade"));
+    await waitFor(() => expect(ultima("/api/repasse/planilha")).toBe("/api/repasse/planilha?page=1&tipo=Mensalidade"));
+    await waitFor(() =>
+      expect(ultima("/api/repasse/matriculados")).toBe("/api/repasse/matriculados?page=1&tipo_mat=NOVA%20MATRICULA"),
+    );
+  });
+
+  it("mês e nível que somem das opções do servidor saem do filtro", async () => {
+    const semOpcoes = { ...MATRICULADOS, filtros: { ...MATRICULADOS.filtros, meses: [], niveis: [] } };
+    abrir({ matriculados: (url) => json(url.includes("tipo_mat=RECOMPRA") ? semOpcoes : MATRICULADOS) });
+    await esperarAgentes();
+    const mt = regiao("Matriculados");
+    await mt.findByText("99990000");
+    fireEvent.change(mt.getByLabelText("Mês de ingresso"), { target: { value: "2026-10" } });
+    fireEvent.change(mt.getByLabelText("Nível"), { target: { value: "PÓS" } });
+    await waitFor(() => expect(ultima("/api/repasse/matriculados")).toContain("nivel=P%C3%93S"));
+    fireEvent.change(mt.getByLabelText("Tipo de matrícula"), { target: { value: "RECOMPRA" } });
+    // a resposta sem as opções derruba mês e nível: o próximo pedido já vai sem eles
+    await waitFor(() =>
+      expect(ultima("/api/repasse/matriculados")).toBe("/api/repasse/matriculados?page=1&tipo_mat=RECOMPRA"),
+    );
+    expect((mt.getByLabelText("Mês de ingresso") as HTMLSelectElement).value).toBe("");
+    expect((mt.getByLabelText("Nível") as HTMLSelectElement).value).toBe("");
   });
 
   it("taxa: admin edita, a tela recalcula na hora e salva com PUT {taxa}", async () => {
@@ -417,7 +512,10 @@ describe("Repasse (admin)", () => {
     await esperarAgentes();
     await regiao("Matriculados").findByText("99990000");
     fireEvent.change(screen.getByLabelText("Ciclo"), { target: { value: "2026.1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
     await waitFor(() => expect(ultima("/api/repasse/agentes")).toContain("ciclo=2026.1"));
+    // o Buscar recarrega os matriculados (repLoad), mas com os filtros deles
+    await waitFor(() => expect(urls("/api/repasse/matriculados").length).toBeGreaterThan(1));
     expect(urls("/api/repasse/matriculados").every((u) => !u.includes("ciclo=2026.1"))).toBe(true);
   });
 

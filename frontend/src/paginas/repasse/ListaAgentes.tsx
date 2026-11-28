@@ -66,7 +66,7 @@ export function ListaAgentes({
                   </span>
                 </span>
               </span>
-              <span className="block h-1.5 rounded-full overflow-hidden" aria-hidden style={{ background: "var(--bg-elevated)" }}>
+              <span className="block h-1.5 rounded-full overflow-hidden" aria-hidden style={{ background: "var(--surface-variant)" }}>
                 <span
                   className="block h-full rounded-full barra-animada bg-amber-500"
                   style={{ width: `${Math.round((repasse / maxRepasse) * 100)}%` }}

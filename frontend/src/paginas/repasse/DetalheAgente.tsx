@@ -29,7 +29,7 @@ export function DetalheAgente({
   }, [admin]);
   const q = useQuery({
     queryKey: ["repasse", "detalhe", String(agente.id), filtros.ciclo, filtros.tipo, filtros.turma],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       apiOk<Detalhe>(
         `/api/repasse/detalhe?${qs([
           ["kommo_uid", String(agente.id)],
@@ -37,6 +37,7 @@ export function DetalheAgente({
           ["tipo", filtros.tipo],
           ["turma", filtros.turma],
         ])}`,
+        signal,
       ),
   });
 

@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LinhaAviso, Paginacao, textoErro } from "./comum";
 import { apiOk, dinheiro, qs, useAtrasado } from "./formato";
 import type { Matriculados } from "./tipos";
@@ -47,13 +47,29 @@ export function MatriculadosRepasse() {
 
   const q = useQuery({
     queryKey: ["repasse", "matriculados", filtro, pagina],
-    queryFn: () => apiOk<Matriculados>(`/api/repasse/matriculados?${qs([["page", pagina]])}${filtro ? `&${filtro}` : ""}`),
+    queryFn: ({ signal }) =>
+      apiOk<Matriculados>(`/api/repasse/matriculados?${qs([["page", pagina]])}${filtro ? `&${filtro}` : ""}`, signal),
     placeholderData: keepPreviousData,
   });
   const d = q.data;
   const opcoes = d?.filtros;
   const ciclos = opcoes?.ciclos ?? [];
   const cicloAtual = f.ciclo_mat || opcoes?.ciclo || "";
+
+  // Mês ou nível que não existe mais nas opções do servidor sai do filtro, para o
+  // select e o pedido dizerem a mesma coisa (a antiga zerava o select).
+  const respostaAtual = d && !q.isPlaceholderData ? d : null;
+  useEffect(() => {
+    if (!respostaAtual) return;
+    const meses = respostaAtual.filtros?.meses ?? [];
+    const niveis = respostaAtual.filtros?.niveis ?? [];
+    setF((atual) => {
+      const semMes = atual.mes && !meses.some((m) => m.id === atual.mes);
+      const semNivel = atual.nivel && !niveis.includes(atual.nivel);
+      if (!semMes && !semNivel) return atual;
+      return { ...atual, ...(semMes ? { mes: "" } : {}), ...(semNivel ? { nivel: "" } : {}) };
+    });
+  }, [respostaAtual]);
 
   const mudar = (campo: keyof FiltrosMat) => (e: { target: { value: string } }) =>
     setF((atual) => ({ ...atual, [campo]: e.target.value }));

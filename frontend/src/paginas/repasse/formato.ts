@@ -31,9 +31,12 @@ export function qs(pares: [string, string | number | undefined | null][]): strin
     .join("&");
 }
 
-/** As rotas respondem {ok: false, error} quando algo falha; trata como erro. */
-export async function apiOk<T extends { ok?: boolean; error?: string }>(caminho: string): Promise<T> {
-  const d = await api<T>(caminho);
+/**
+ * As rotas respondem {ok: false, error} quando algo falha; trata como erro.
+ * `signal` (do TanStack Query) cancela o pedido que ficou velho.
+ */
+export async function apiOk<T extends { ok?: boolean; error?: string }>(caminho: string, signal?: AbortSignal): Promise<T> {
+  const d = await api<T>(caminho, signal ? { signal } : undefined);
   if (d && d.ok === false) throw new Error(d.error || "Erro");
   return d;
 }

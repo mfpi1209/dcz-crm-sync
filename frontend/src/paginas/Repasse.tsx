@@ -48,23 +48,52 @@ export function Repasse() {
   const taxaQ = useQuery({ queryKey: ["repasse", "taxa"], queryFn: () => api<Taxa>("/api/repasse/taxa") });
 
   // Filtros de cima. Até o usuário mexer, vale o padrão (tipo "Mensalidade" quando existe).
+  // `rascunho` é o que os selects mostram; `aplicado` é o que as consultas usam. Só o botão
+  // Buscar copia um para o outro (como o repLoad antigo): a rota de agentes é pesada e o
+  // servidor tem 4 threads, então mexer num select não pode disparar busca.
   const tipoPadrao = filtrosQ.data?.tipos.includes("Mensalidade") ? "Mensalidade" : "";
-  const [escolha, setEscolha] = useState<FiltrosTela | null>(null);
-  const filtros: FiltrosTela = escolha ?? { ciclo: "", tipo: tipoPadrao, turma: "" };
+  const padrao: FiltrosTela = { ciclo: "", tipo: tipoPadrao, turma: "" };
+  const [rascunhoEscolhido, setRascunho] = useState<FiltrosTela | null>(null);
+  const [aplicado, setAplicado] = useState<FiltrosTela | null>(null);
+  const rascunho = rascunhoEscolhido ?? padrao;
+  const filtros: FiltrosTela = aplicado ?? padrao;
   const chave = `${filtros.ciclo}|${filtros.tipo}|${filtros.turma}`;
+  // Muda no Limpar e recria a planilha e os matriculados (zera busca, página e filtros deles).
+  const [reinicio, setReinicio] = useState(0);
 
   const porCiclo = filtrosQ.data?.turmas_por_ciclo ?? {};
-  const turmas = filtros.ciclo
-    ? porCiclo[filtros.ciclo] ?? []
+  const turmas = rascunho.ciclo
+    ? porCiclo[rascunho.ciclo] ?? []
     : [...new Set(Object.values(porCiclo).flat())].sort();
 
   function mudarFiltro(campo: keyof FiltrosTela, valor: string) {
-    setEscolha({
-      ...filtros,
+    setRascunho({
+      ...rascunho,
       [campo]: valor,
       // Turmas dependem do ciclo: trocar o ciclo limpa a turma (repAtualizarTurmas).
       ...(campo === "ciclo" ? { turma: "" } : {}),
     });
+  }
+
+  /** Busca de novo só estas partes (nunca filtros nem taxa). */
+  function rebuscar(partes: string[]) {
+    for (const parte of partes) cliente.invalidateQueries({ queryKey: ["repasse", parte] });
+  }
+
+  /**
+   * Buscar: aplica o rascunho e fecha o detalhe, como o repLoad, que recarregava
+   * agentes, planilha e matriculados. Com filtro novo, agentes e planilha já buscam
+   * pela chave nova (invalidar agora buscaria de novo a chave velha, à toa).
+   */
+  function buscar() {
+    const novo = { ...rascunho };
+    setSelecao(null);
+    if (`${novo.ciclo}|${novo.tipo}|${novo.turma}` === chave) {
+      rebuscar(["agentes", "planilha", "matriculados"]);
+    } else {
+      setAplicado(novo);
+      rebuscar(["matriculados"]);
+    }
   }
 
   // Taxa: texto do campo, a última taxa válida e o aviso.
@@ -112,13 +141,14 @@ export function Repasse() {
 
   const agentesQ = useQuery({
     queryKey: ["repasse", "agentes", filtros.ciclo, filtros.tipo, filtros.turma],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       apiOk<Agentes>(
         `/api/repasse/agentes?${qs([
           ["ciclo", filtros.ciclo],
           ["tipo", filtros.tipo],
           ["turma", filtros.turma],
         ])}`,
+        signal,
       ),
     // Espera os filtros para já buscar com o tipo padrão.
     enabled: !filtrosQ.isPending,
@@ -138,10 +168,13 @@ export function Repasse() {
   const indiceSel = idSelecionado === null ? -1 : agentes.findIndex((a) => String(a.id) === String(idSelecionado));
   const agenteSel = indiceSel >= 0 ? agentes[indiceSel] : null;
 
+  /** Limpar (repReset): filtros ao padrão e já aplicados; planilha e matriculados recriados do zero. */
   function limpar() {
-    setEscolha(null);
+    setRascunho(null);
+    setAplicado(null);
     setBusca("");
     setSelecao(null);
+    setReinicio((n) => n + 1);
   }
 
   const nomeConsultor = me.data?.display_name || me.data?.username || "";
@@ -150,19 +183,19 @@ export function Repasse() {
     <div className="flex flex-col gap-6 max-w-7xl">
       {/* Filtros numa linha, controles de 36px; ações à direita. */}
       <section className="flex flex-wrap gap-2 items-center" aria-label="Filtros">
-        <select className="controle font-normal" aria-label="Ciclo" value={filtros.ciclo} onChange={(e) => mudarFiltro("ciclo", e.target.value)}>
+        <select className="controle font-normal" aria-label="Ciclo" value={rascunho.ciclo} onChange={(e) => mudarFiltro("ciclo", e.target.value)}>
           <option value="">Todos os ciclos</option>
           {(filtrosQ.data?.ciclos ?? []).map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
-        <select className="controle font-normal" aria-label="Turma" value={filtros.turma} onChange={(e) => mudarFiltro("turma", e.target.value)}>
+        <select className="controle font-normal" aria-label="Turma" value={rascunho.turma} onChange={(e) => mudarFiltro("turma", e.target.value)}>
           <option value="">Todas as turmas</option>
           {turmas.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
-        <select className="controle font-normal" aria-label="Tipo de pagamento" value={filtros.tipo} onChange={(e) => mudarFiltro("tipo", e.target.value)}>
+        <select className="controle font-normal" aria-label="Tipo de pagamento" value={rascunho.tipo} onChange={(e) => mudarFiltro("tipo", e.target.value)}>
           <option value="">Todos os tipos</option>
           {(filtrosQ.data?.tipos ?? []).map((t) => (
             <option key={t} value={t}>{t}</option>
@@ -203,12 +236,17 @@ export function Repasse() {
           </button>
           <button
             type="button"
-            className="controle controle-primario"
+            className="controle"
+            title="Busca de novo os filtros já aplicados (não muda filtros nem taxa)"
             disabled={agentesQ.isFetching}
-            onClick={() => cliente.invalidateQueries({ queryKey: ["repasse"] })}
+            onClick={() => rebuscar(["agentes", "detalhe", "planilha", "matriculados"])}
           >
             <span className="material-symbols-outlined text-[18px]" aria-hidden>refresh</span>
-            {agentesQ.isFetching ? "Atualizando…" : "Atualizar"}
+            Atualizar
+          </button>
+          <button type="button" className="controle controle-primario" disabled={agentesQ.isFetching} onClick={buscar}>
+            <span className="material-symbols-outlined text-[18px]" aria-hidden>search</span>
+            {agentesQ.isFetching ? "Buscando…" : "Buscar"}
           </button>
         </div>
       </section>
@@ -299,8 +337,8 @@ export function Repasse() {
 
       {admin && !filtrosQ.isPending && (
         <>
-          <PlanilhaRecebimentos filtros={filtros} />
-          <MatriculadosRepasse />
+          <PlanilhaRecebimentos key={`planilha-${reinicio}`} filtros={filtros} />
+          <MatriculadosRepasse key={`matriculados-${reinicio}`} />
         </>
       )}
     </div>

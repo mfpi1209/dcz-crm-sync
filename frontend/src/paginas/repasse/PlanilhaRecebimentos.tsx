@@ -20,7 +20,8 @@ export function PlanilhaRecebimentos({ filtros }: { filtros: FiltrosTela }) {
 
   const q = useQuery({
     queryKey: ["repasse", "planilha", filtro, pagina],
-    queryFn: () => apiOk<Planilha>(`/api/repasse/planilha?${qs([["page", pagina]])}${filtro ? `&${filtro}` : ""}`),
+    queryFn: ({ signal }) =>
+      apiOk<Planilha>(`/api/repasse/planilha?${qs([["page", pagina]])}${filtro ? `&${filtro}` : ""}`, signal),
     placeholderData: keepPreviousData,
   });
   const d = q.data;
