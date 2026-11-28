@@ -67,11 +67,24 @@ function Selo({ u }: { u: Usuario }) {
   );
 }
 
-function Indicador({ rotulo, valor, cor }: { rotulo: string; valor: string; cor?: string }) {
+function Indicador({
+  rotulo,
+  valor,
+  cor,
+  contexto,
+}: {
+  rotulo: string;
+  valor: string;
+  cor?: string;
+  contexto?: string;
+}) {
   return (
-    <div className="cartao p-5">
+    <div className="cartao p-5" role="group" aria-label={rotulo}>
       <p className="rotulo mb-1">{rotulo}</p>
       <p className={`text-3xl font-headline font-extrabold ${cor ?? ""}`}>{valor}</p>
+      {contexto && (
+        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{contexto}</p>
+      )}
     </div>
   );
 }
@@ -103,39 +116,24 @@ export function UsoDoDashboard() {
 
   const d = q.data;
   const carregando = q.isPending;
+  const totalTelas = d ? d.por_pagina.length + d.nao_acessadas.length : 0;
+  const maxHits = d ? Math.max(1, ...d.por_pagina.map((r) => r.hits)) : 1;
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl">
-      <header className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl">Uso do Dashboard</h1>
-          <p className="rotulo mt-1">Páginas acessadas no período · só admin</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => q.refetch()}
-          disabled={q.isFetching}
-          className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-2 disabled:opacity-60"
-          style={{ background: "var(--primary-container)" }}
-        >
-          <span className="material-symbols-outlined" aria-hidden>refresh</span>
-          {q.isFetching ? "Atualizando…" : "Atualizar"}
-        </button>
-      </header>
-
-      <section className="cartao p-5 flex flex-wrap gap-3 items-end" aria-label="Período">
-        <div className="flex items-center gap-1.5 p-1 rounded-lg" style={{ background: "var(--bg-elevated)" }}>
+      <section className="flex flex-wrap gap-3 items-end" aria-label="Período">
+        <div className="flex flex-wrap items-center gap-2">
           {PRESETS.map((p) => (
             <button
               key={p.dias}
               type="button"
               aria-pressed={preset === p.dias}
               onClick={() => escolherPreset(p.dias)}
-              className="px-3 py-1.5 rounded-md text-xs font-semibold"
+              className="px-3.5 py-1.5 rounded-full text-xs font-semibold border"
               style={
                 preset === p.dias
-                  ? { background: "var(--primary-container)", color: "white" }
-                  : { color: "var(--text-secondary)" }
+                  ? { background: "var(--primary)", borderColor: "var(--primary)", color: "var(--bg-card)" }
+                  : { background: "transparent", borderColor: "var(--border)", color: "var(--text-secondary)" }
               }
             >
               {p.rotulo}
@@ -165,10 +163,20 @@ export function UsoDoDashboard() {
         <button
           type="button"
           onClick={aplicar}
-          className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-          style={{ background: "var(--primary-container)" }}
+          className="px-4 py-2 rounded-lg text-sm font-semibold border"
+          style={{ background: "transparent", borderColor: "var(--border)", color: "var(--text-primary)" }}
         >
           Aplicar
+        </button>
+        <button
+          type="button"
+          onClick={() => q.refetch()}
+          disabled={q.isFetching}
+          className="md:ml-auto px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 disabled:opacity-60"
+          style={{ background: "var(--primary)", color: "var(--bg-card)" }}
+        >
+          <span className="material-symbols-outlined" aria-hidden>refresh</span>
+          {q.isFetching ? "Atualizando…" : "Atualizar"}
         </button>
       </section>
 
@@ -183,15 +191,17 @@ export function UsoDoDashboard() {
       {!q.isError && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <Indicador rotulo="Total de acessos" valor={carregando ? "—" : numero(d?.totais.total_hits)} />
+            <Indicador rotulo="Acessos" valor={carregando ? "—" : numero(d?.totais.total_hits)} />
             <Indicador
-              rotulo="Páginas com acesso"
+              rotulo="Telas usadas"
               valor={carregando ? "—" : numero(d?.por_pagina.length)}
+              contexto={d ? `de ${totalTelas} telas` : undefined}
               cor="text-emerald-600 dark:text-emerald-400"
             />
             <Indicador
-              rotulo="Páginas sem acesso"
+              rotulo="Telas sem uso"
               valor={carregando ? "—" : numero(d?.nao_acessadas.length)}
+              contexto={d ? "ninguém abriu no período" : undefined}
               cor="text-amber-600 dark:text-amber-400"
             />
           </div>
@@ -206,23 +216,33 @@ export function UsoDoDashboard() {
                 <thead className="sticky top-0" style={{ background: "var(--bg-card)" }}>
                   <tr className="border-b" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
                     <th className="text-left px-3 py-2 font-semibold">Página</th>
+                    <th className="px-3 py-2 w-[34%]" aria-hidden />
                     <th className="text-right px-3 py-2 font-semibold">Acessos</th>
                     <th className="text-right px-3 py-2 font-semibold">Usuários únicos</th>
                   </tr>
                 </thead>
                 <tbody>
                   {carregando ? (
-                    <tr><td colSpan={3} className="px-3 py-6 text-center" style={{ color: "var(--text-muted)" }}>Carregando…</td></tr>
+                    <tr><td colSpan={4} className="px-3 py-6 text-center" style={{ color: "var(--text-muted)" }}>Carregando…</td></tr>
                   ) : d && d.por_pagina.length ? (
                     d.por_pagina.map((r) => (
                       <tr key={r.page} className="border-b" style={{ borderColor: "var(--border)" }}>
                         <td className="px-3 py-2"><Pagina page={r.page} /></td>
+                        <td className="px-3 py-2">
+                          <div className="h-1.5 rounded-full" style={{ background: "var(--bg-elevated)" }}>
+                            <div
+                              data-testid={`barra-${r.page}`}
+                              className="h-1.5 rounded-full"
+                              style={{ width: `${(r.hits / maxHits) * 100}%`, background: "var(--primary)" }}
+                            />
+                          </div>
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">{numero(r.hits)}</td>
                         <td className="px-3 py-2 text-right tabular-nums" style={{ color: "var(--text-secondary)" }}>{numero(r.users)}</td>
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={3} className="px-3 py-6 text-center" style={{ color: "var(--text-muted)" }}>Nenhuma página acessada no período.</td></tr>
+                    <tr><td colSpan={4} className="px-3 py-6 text-center" style={{ color: "var(--text-muted)" }}>Nenhuma página acessada no período.</td></tr>
                   )}
                 </tbody>
               </table>

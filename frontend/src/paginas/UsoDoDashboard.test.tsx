@@ -99,13 +99,52 @@ describe("Uso do Dashboard", () => {
     expect(screen.getByRole("button", { name: "30 dias" }).getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("indicadores: total, páginas com acesso e sem acesso", async () => {
+  it("indicadores: acessos, telas usadas e telas sem uso", async () => {
     abrir();
     await screen.findByText("1.234");
-    const valor = (rotulo: string) => screen.getByText(rotulo).nextElementSibling?.textContent;
-    expect(valor("Total de acessos")).toBe("1.234");
-    expect(valor("Páginas com acesso")).toBe("2");
-    expect(valor("Páginas sem acesso")).toBe("2");
+    const cartao = (nome: string) => within(screen.getByRole("group", { name: nome }));
+    expect(cartao("Acessos").getByText("1.234")).toBeTruthy();
+    expect(cartao("Telas usadas").getByText("2")).toBeTruthy();
+    expect(cartao("Telas sem uso").getByText("2")).toBeTruthy();
+  });
+
+  it("cartão mostra contexto", async () => {
+    abrir();
+    await screen.findByText("1.234");
+    expect(screen.getByText("de 4 telas")).toBeTruthy();
+    expect(screen.getByText("ninguém abriu no período")).toBeTruthy();
+  });
+
+  it("barras proporcionais", async () => {
+    abrir({
+      stats: () =>
+        json({
+          ...STATS,
+          por_pagina: [
+            { page: "bwipo_comercial", hits: 1000, users: 8 },
+            { page: "repasse", hits: 500, users: 3 },
+          ],
+        }),
+    });
+    await screen.findByText("1.234");
+    const largura = (page: string) => (screen.getByTestId("barra-" + page) as HTMLElement).style.width;
+    expect(largura("bwipo_comercial")).toBe("100%");
+    expect(largura("repasse")).toBe("50%");
+  });
+
+  it("pílulas de período", async () => {
+    abrir();
+    await screen.findByText("1.234");
+    fireEvent.click(screen.getByRole("button", { name: "7 dias" }));
+    expect(screen.getByRole("button", { name: "7 dias" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "30 dias" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("não repete o título da barra de cima dentro da página", async () => {
+    abrir();
+    await screen.findByText("1.234");
+    expect(screen.queryByText("Páginas acessadas no período · só admin")).toBeNull();
+    expect(screen.getAllByText("Uso do Dashboard").length).toBeLessThanOrEqual(2);
   });
 
   it("preset troca o período e busca de novo", async () => {
