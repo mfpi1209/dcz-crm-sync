@@ -96,18 +96,23 @@ export function MinhaPerformance() {
 
   const insightsQ = useQuery({
     queryKey: ["mp", "insights", qs],
-    queryFn: async ({ signal }) => {
-      let d = await api<Insights>(`/api/minha-performance/insights${qs}`, { signal });
-      if (d?.campanha && ehVisaoSuporte(d, suporteEquipe)) {
-        d = await mesclarVendasComercial(d, signal);
-        d = sincronizarHeatmap(d, hojeLocal());
-      }
-      return d;
-    },
+    queryFn: ({ signal }) => api<Insights>(`/api/minha-performance/insights${qs}`, { signal }),
     enabled: !!me.data && selecao !== undefined && !semVinculo && !campanhasQ.isPending,
     staleTime: 5 * 60 * 1000,
   });
-  const ins = insightsQ.data;
+  // Visão de suporte: os números do time vêm do Dashboard Comercial (/api/comercial-rgm/data,
+  // rota lenta: 20 s ou mais). Fica numa busca separada para a tela dizer o que está esperando.
+  // A chave leva o horário dos insights: o Atualizar refaz os insights e, depois, esta mescla.
+  const bruto = insightsQ.data;
+  const precisaMesclar = !!bruto?.campanha && ehVisaoSuporte(bruto, suporteEquipe);
+  const comercialQ = useQuery({
+    queryKey: ["mp", "comercial", qs, insightsQ.dataUpdatedAt],
+    queryFn: async ({ signal }) => sincronizarHeatmap(await mesclarVendasComercial(bruto!, signal), hojeLocal()),
+    enabled: precisaMesclar,
+    staleTime: 5 * 60 * 1000,
+  });
+  const ins = precisaMesclar && comercialQ.data ? comercialQ.data : bruto;
+  const mesclando = precisaMesclar && comercialQ.isPending;
   const temCampanha = !!ins?.campanha;
 
   const historicoQ = useQuery({
@@ -154,7 +159,13 @@ export function MinhaPerformance() {
   const visaoSuporte = ins ? ehVisaoSuporte(ins, suporteEquipe) : false;
 
   let conteudo;
-  if (me.isPending || selecao === undefined || (insightsQ.isPending && !semVinculo)) {
+  if (mesclando) {
+    conteudo = (
+      <p className="py-16 text-center text-sm" style={TEXTO_FRACO}>
+        Buscando as vendas do time no Dashboard Comercial… isso pode levar até 30 segundos.
+      </p>
+    );
+  } else if (me.isPending || selecao === undefined || (insightsQ.isPending && !semVinculo)) {
     conteudo = me.isError ? (
       <p role="alert" style={{ color: "var(--danger)" }}>
         {textoErro(me.error)}
@@ -325,11 +336,11 @@ export function MinhaPerformance() {
             </div>
           )}
           {temCampanha && abaAtual === "performance" && (
-            <button type="button" className="controle" disabled={insightsQ.isFetching} onClick={atualizar} title="Busca de novo os números desta campanha">
+            <button type="button" className="controle" disabled={insightsQ.isFetching || comercialQ.isFetching} onClick={atualizar} title="Busca de novo os números desta campanha">
               <span className="material-symbols-outlined text-[18px]" aria-hidden>
                 refresh
               </span>
-              {insightsQ.isFetching ? "Atualizando…" : "Atualizar"}
+              {insightsQ.isFetching || comercialQ.isFetching ? "Atualizando…" : "Atualizar"}
             </button>
           )}
         </div>
