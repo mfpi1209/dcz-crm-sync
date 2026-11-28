@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { tentarDeNovo } from "../api";
 import { App, FUTURO_ROUTER } from "../App";
 import type { Me } from "../me";
 import { registrarAcesso } from "../rastreio";
@@ -133,6 +134,8 @@ function abrir(
     metas?: Rota;
     campanhas?: Rota;
     rotas?: Record<string, Rota>;
+    /** QueryClient com a regra de novas tentativas de produção (main.tsx). */
+    producao?: boolean;
   } = {},
 ) {
   chamadas = [];
@@ -180,7 +183,9 @@ function abrir(
     if (url.startsWith("/api/bwipo/painel?")) return (opcoes.painel ?? (() => json(PAINEL)))(url, init);
     return json({}, 404);
   });
-  const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const cliente = new QueryClient({
+    defaultOptions: { queries: opcoes.producao ? { retry: tentarDeNovo, retryDelay: 0 } : { retry: false } },
+  });
   render(
     <QueryClientProvider client={cliente}>
       <MemoryRouter initialEntries={["/bwipo_comercial"]} future={FUTURO_ROUTER}>
@@ -203,6 +208,19 @@ const regiao = (nome: string) => within(screen.getByRole("region", { name: nome 
 
 async function esperarPainel() {
   await screen.findByRole("button", { name: "Ana Souza" });
+}
+
+const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Depois de gravar: o painel é buscado exatamente mais uma vez, e extras e conflitos o seguem. */
+async function esperarDepoisDeGravar() {
+  await waitFor(() => expect(urls("/api/bwipo/painel?")).toHaveLength(2));
+  await waitFor(() => expect(urls("/api/bwipo/painel/extras")).toHaveLength(2));
+  await waitFor(() => expect(corpos("/api/bwipo/painel/conflitos")).toHaveLength(2));
+  await pausa(50);
+  expect(urls("/api/bwipo/painel?")).toHaveLength(2);
+  expect(urls("/api/bwipo/painel/extras")).toHaveLength(2);
+  expect(corpos("/api/bwipo/painel/conflitos")).toHaveLength(2);
 }
 
 let confirmar: MockInstance<(mensagem?: string) => boolean>;
@@ -455,7 +473,7 @@ describe("evasão, fora do padrão e conflitos", () => {
     expect(confirmar).toHaveBeenCalledWith("RGM 40000004: passar a contar como venda?");
     await waitFor(() => expect(corpos("/api/bwipo/painel/contar-venda")).toEqual([{ rgm: "40000004" }]));
     expect(await screen.findByText("RGM 40000004 passa a contar.")).toBeTruthy();
-    await waitFor(() => expect(urls("/api/bwipo/painel?")).toHaveLength(2));
+    await esperarDepoisDeGravar();
   });
 
   it("usuário comum não vê Contar venda nem Sync agentes e não chama rotas de admin", async () => {
@@ -507,7 +525,7 @@ describe("evasão, fora do padrão e conflitos", () => {
       expect(corpos("/api/bwipo/painel/conflitos/resolver")).toEqual([{ rgm: "50000001", user_id: 222, user_name: "Carla Dias" }]),
     );
     expect(await screen.findByText("Venda do RGM 50000001 fixada em Carla Dias.")).toBeTruthy();
-    await waitFor(() => expect(urls("/api/bwipo/painel?")).toHaveLength(2));
+    await esperarDepoisDeGravar();
   });
 
   it("desfazer decisão pede confirmação e manda DELETE", async () => {
@@ -558,7 +576,7 @@ describe("consultar RGM e atualizar lead", () => {
     );
     // modal aberto: consulta de novo e atualiza o painel
     await waitFor(() => expect(urls("/api/bwipo/painel/rgm")).toHaveLength(2));
-    await waitFor(() => expect(urls("/api/bwipo/painel?")).toHaveLength(2));
+    await esperarDepoisDeGravar();
   });
 
   it("Atualizar do candidato do Bwipo chama o mini-sync com o deal_id", async () => {
@@ -615,7 +633,7 @@ describe("consultar RGM e atualizar lead", () => {
     fireEvent.click(escolha);
     await waitFor(() => expect(corpos("/api/bwipo/painel/mini-sync")[2]).toEqual({ deal_id: "a1" }));
     expect(await painel.findByText(/Venda do RGM 48411612 fixada em Ana/)).toBeTruthy();
-    await waitFor(() => expect(urls("/api/bwipo/painel?")).toHaveLength(2));
+    await esperarDepoisDeGravar();
   });
 });
 
@@ -627,6 +645,7 @@ describe("detalhe do agente", () => {
     const modal = within(await screen.findByRole("dialog", { name: /Bruno Lima/ }));
     expect(modal.getByText(/0 venda\(s\) · 2 matrícula\(s\) — período 01\/10\/2026 a 31\/10\/2026/)).toBeTruthy();
     expect(modal.getByText("⚠ 1 RGM fora do padrão")).toBeTruthy();
+    expect(document.activeElement).toBe(modal.getByLabelText("Buscar RGM ou nome")); // foco na busca ao abrir
     await waitFor(() => expect(corpos("/api/bwipo/painel/contatos")).toEqual([{ rgms: ["50000003", "40000004"] }]));
     expect(modal.getByRole("button", { name: "Contar venda" })).toBeTruthy();
     fireEvent.change(modal.getByLabelText("Buscar RGM ou nome"), { target: { value: "quatro" } });
@@ -689,7 +708,7 @@ describe("ferramentas", () => {
     expect(modal.getByText("Bruno Lima · decisão manual")).toBeTruthy();
   });
 
-  it("diagnóstico mostra fontes do recorte e números do espelho; erro aparece no modal", async () => {
+  it("diagnóstico mostra fontes do recorte e números do espelho", async () => {
     abrir({
       rotas: {
         "GET /api/bwipo/painel/diagnostico": () =>
@@ -716,6 +735,49 @@ describe("ferramentas", () => {
     await esperarPainel();
     fireEvent.click(screen.getByRole("button", { name: "Sync agentes" }));
     expect(await screen.findByText("Kommo: — usuários · Bwipo ligados: 8 · sem depara: 2")).toBeTruthy();
-    await waitFor(() => expect(urls("/api/bwipo/painel?")).toHaveLength(2));
+    await esperarDepoisDeGravar();
+  });
+});
+
+describe("sem novas tentativas (regra de produção do QueryClient)", () => {
+  it("erro 500 no diagnóstico aparece no modal e a rota é chamada uma vez só", async () => {
+    abrir({ producao: true, rotas: { "GET /api/bwipo/painel/diagnostico": () => json({ ok: false, error: "espelho fora do ar" }, 500) } });
+    await esperarPainel();
+    fireEvent.click(screen.getByRole("button", { name: "Diagnóstico" }));
+    const modal = within(await screen.findByRole("dialog", { name: "Diagnóstico Kommo ↔ Bwipo" }));
+    expect(await modal.findByText("espelho fora do ar")).toBeTruthy();
+    expect(modal.getByText("Erro")).toBeTruthy();
+    await pausa(50);
+    expect(urls("/api/bwipo/painel/diagnostico")).toHaveLength(1);
+  });
+
+  it("erro 500 em duplicatas, sem data, contatos, ciclos e turmas: uma chamada cada", async () => {
+    const erro = () => json({ ok: false, error: "falhou" }, 500);
+    abrir({
+      producao: true,
+      rotas: {
+        "POST /api/bwipo/painel/duplicatas": erro,
+        "POST /api/bwipo/painel/sem-data": erro,
+        "POST /api/bwipo/painel/contatos": erro,
+        "GET /api/comercial-rgm/ciclos": erro,
+        "GET /api/comercial-rgm/turmas": erro,
+      },
+    });
+    await esperarPainel();
+    fireEvent.click(screen.getByRole("button", { name: "Duplicatas" }));
+    expect(await within(await screen.findByRole("dialog", { name: "Duplicatas no Bwipo" })).findByText("falhou")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sem data" }));
+    expect(await within(await screen.findByRole("dialog", { name: "Matrículas sem data no Bwipo" })).findByText("falhou")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ana Souza" }));
+    await screen.findByRole("dialog", { name: /Ana Souza/ });
+    await waitFor(() => expect(urls("/api/bwipo/painel/contatos", "POST")).toHaveLength(1));
+    await pausa(50);
+    expect(urls("/api/bwipo/painel/duplicatas", "POST")).toHaveLength(1);
+    expect(urls("/api/bwipo/painel/sem-data", "POST")).toHaveLength(1);
+    expect(urls("/api/bwipo/painel/contatos", "POST")).toHaveLength(1);
+    expect(urls("/api/comercial-rgm/ciclos")).toHaveLength(1);
+    expect(urls("/api/comercial-rgm/turmas")).toHaveLength(1);
   });
 });

@@ -26,6 +26,7 @@ export function ModalDuplicatas({ linhas, acoes, onFechar }: Base) {
     queryKey: ["bwipo", "duplicatas"],
     queryFn: ({ signal }) => enviar<Duplicatas>("/api/bwipo/painel/duplicatas", "POST", { rgms: rgmsRecorte(linhas) }, signal),
     gcTime: 0,
+    retry: false,
   });
   const lin = porRgm(linhas);
   const sub = q.isPending
@@ -72,6 +73,7 @@ export function ModalSemData({ linhas, acoes, onFechar }: Base) {
     queryKey: ["bwipo", "sem-data"],
     queryFn: ({ signal }) => enviar<SemData>("/api/bwipo/painel/sem-data", "POST", { rgms: rgmsRecorte(linhas) }, signal),
     gcTime: 0,
+    retry: false,
   });
   const lin = porRgm(linhas);
   const sub = q.isPending ? "Carregando…" : q.isError ? "Erro" : "Matrícula do recorte (relatório SIAA) cruzada com o negócio no Bwipo";
@@ -117,6 +119,7 @@ export function ModalDiagnostico({ linhas, onFechar }: Omit<Base, "acoes">) {
     queryKey: ["bwipo", "diagnostico"],
     queryFn: ({ signal }) => apiOk<Diagnostico>("/api/bwipo/painel/diagnostico", signal),
     gcTime: 0,
+    retry: false,
   });
   const sub = q.isPending ? "Carregando…" : q.isError ? "Erro" : "Saúde da ligação entre os dois CRMs";
   const fontes: Record<string, number> = {};

@@ -51,8 +51,8 @@ export function ListaAlunos({ linhas, contarVenda, acoes }: { linhas: Linha[]; c
             </tr>
           </thead>
           <tbody>
-            {linhas.slice(0, LIMITE).map((l) => (
-              <tr key={`${l.rgm}-${l.data}-${l.agente}`}>
+            {linhas.slice(0, LIMITE).map((l, i) => (
+              <tr key={`${l.rgm}-${l.data}-${l.agente}-${i}`}>
                 <td className="whitespace-nowrap">
                   <BotaoRgm rgm={l.rgm} acoes={acoes} />
                 </td>

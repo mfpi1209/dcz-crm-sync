@@ -20,7 +20,8 @@ export function Modal({
   fechar.current = onFechar;
   useEffect(() => {
     const anterior = document.activeElement as HTMLElement | null;
-    painel.current?.focus();
+    // Foco no painel só se nada lá dentro (ex.: campo com autoFocus) já pegou o foco.
+    if (!painel.current?.contains(document.activeElement)) painel.current?.focus();
     const tecla = (e: KeyboardEvent) => {
       if (e.key === "Escape") fechar.current();
     };

@@ -59,11 +59,11 @@ interface Periodo {
 }
 
 /** Período inicial (bwcPreparar): meta ou campanha mais recente; senão, do dia 1 até hoje. */
-async function periodoInicial(): Promise<Periodo> {
+async function periodoInicial(signal?: AbortSignal): Promise<Periodo> {
   type ComPeriodos = { metas?: { dt_inicio?: string; dt_fim?: string }[]; campanhas?: { dt_inicio?: string; dt_fim?: string }[] };
   const [metas, camps] = await Promise.all([
-    api<ComPeriodos>("/api/comercial-rgm/metas?categoria=matriculas").catch((): ComPeriodos => ({})),
-    api<ComPeriodos>("/api/premiacao/campanhas-periodos").catch((): ComPeriodos => ({})),
+    api<ComPeriodos>("/api/comercial-rgm/metas?categoria=matriculas", { signal }).catch((): ComPeriodos => ({})),
+    api<ComPeriodos>("/api/premiacao/campanhas-periodos", { signal }).catch((): ComPeriodos => ({})),
   ]);
   const p = periodoMaisRecente([...(metas.metas || []), ...(camps.campanhas || [])]);
   if (p) return { ini: p.dt_inicio, fim: p.dt_fim };
@@ -95,7 +95,7 @@ export function BwipoComercial() {
   useEffect(() => () => clearTimeout(tempo.current), []);
 
   // ---- Filtros ----
-  const periodoQ = useQuery({ queryKey: ["bwipo", "periodo-inicial"], queryFn: periodoInicial, staleTime: Infinity, retry: false });
+  const periodoQ = useQuery({ queryKey: ["bwipo", "periodo-inicial"], queryFn: ({ signal }) => periodoInicial(signal), staleTime: Infinity, retry: false });
   const padrao: Filtros | null = periodoQ.data ? { ...SEM_FILTRO, ...periodoQ.data } : null;
   const [rascunhoEscolhido, setRascunho] = useState<Filtros | null>(null);
   const [aplicadoEscolhido, setAplicado] = useState<Filtros | null>(null);
@@ -109,12 +109,14 @@ export function BwipoComercial() {
     queryKey: ["bwipo", "ciclos"],
     queryFn: async ({ signal }) => (await api<{ ok?: boolean; ciclos?: Ciclo[] }>("/api/comercial-rgm/ciclos", { signal })).ciclos ?? [],
     staleTime: Infinity,
+    retry: false,
   });
   const turmasQ = useQuery({
     queryKey: ["bwipo", "turmas", ciclo],
     queryFn: async ({ signal }) =>
       (await api<{ ok?: boolean; turmas?: Turma[] }>(`/api/comercial-rgm/turmas${ciclo ? `?ciclo_id=${ciclo}` : ""}`, { signal })).turmas ?? [],
     staleTime: Infinity,
+    retry: false,
     placeholderData: (anterior) => anterior,
   });
   const turmas = turmasQ.data ?? [];
@@ -162,7 +164,8 @@ export function BwipoComercial() {
   });
 
   /** Valor do select só se ainda existe nas opções (_bwcFillSelect). */
-  const valido = (valor: string, lista: string[]) => (valor && lista.includes(valor) ? valor : "");
+  // Só depois de uma resposta do painel (enquanto carrega ou após erro, o rascunho fica como está).
+  const valido = (valor: string, lista: string[]) => (!painel || (valor && lista.includes(valor)) ? valor : "");
   const rascunhoVisivel: Filtros | null = rascunho
     ? { ...rascunho, polo: valido(rascunho.polo, opcoes.polos), agente: valido(rascunho.agente, opcoes.agentes) }
     : null;

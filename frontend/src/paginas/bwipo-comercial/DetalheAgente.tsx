@@ -76,6 +76,7 @@ export function DetalheAgente({
     queryKey: ["bwipo", "contatos", nome, chave, rgms.join(",")],
     queryFn: ({ signal }) => enviar<Contatos>("/api/bwipo/painel/contatos", "POST", { rgms }, signal),
     gcTime: 0,
+    retry: false,
   });
   const mapa = contatosQ.data?.contatos ?? {};
   const completas: LinhaAgente[] = linhas.map((l) => ({
@@ -165,8 +166,8 @@ export function DetalheAgente({
             </thead>
             <tbody>
               {filtradas.length ? (
-                filtradas.map((l) => (
-                  <tr key={`${l.rgm}-${l.data}`} className={l.fora ? "bg-orange-500/5" : ""}>
+                filtradas.map((l, i) => (
+                  <tr key={`${l.rgm}-${l.data}-${i}`} className={l.fora ? "bg-orange-500/5" : ""}>
                     <td className="whitespace-nowrap">
                       {l.fora ? (
                         <span title="RGM fora do padrão do ciclo" className="text-orange-700 dark:text-orange-300">

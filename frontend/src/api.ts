@@ -52,3 +52,8 @@ export async function api<T>(caminho: string, init?: RequestInit): Promise<T> {
   }
   return (await r.json()) as T;
 }
+
+/** Regra de novas tentativas do QueryClient de produção (main.tsx): 401/403 não melhoram tentando de novo. */
+export function tentarDeNovo(tentativas: number, erro: unknown): boolean {
+  return !(erro instanceof ErroApi && (erro.status === 401 || erro.status === 403)) && tentativas < 2;
+}
