@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, FUTURO_ROUTER } from "./App";
 import type { Me, Nav } from "./me";
-import { montarMenu } from "./menu";
+import { GRUPOS_DO_MENU, grupoDaTela, montarMenu } from "./menu";
 
 function nav(parcial: Partial<Nav>): Nav {
   return {
@@ -74,6 +74,64 @@ describe("montarMenu", () => {
     const porNome = Object.fromEntries(m.avulsas.map((i) => [i.pagina, i]));
     expect(porNome.page_views).toMatchObject({ nova: true, href: "/app/page_views", titulo: "Uso do Dashboard" });
     expect(porNome.dashboard).toMatchObject({ nova: false, href: "/#dashboard" });
+  });
+});
+
+describe("montarMenu: fixadas e grupos", () => {
+  const NAV = nav({
+    paginas: ["dashboard", "avisos", "repasse", "bwipo_comercial"],
+    secoes: { comercial: true },
+    grupos: { comercial: ["bwipo_comercial", "repasse"] },
+  });
+
+  it("fixadas primeiro, com título Fixadas", () => {
+    const m = montarMenu(NAV, VAZIO, { fixadas: ["repasse", "avisos"], mais_usadas: ["dashboard"] });
+    expect(m.fixadas?.titulo).toBe("Fixadas");
+    expect(m.fixadas?.itens.map((i) => i.pagina)).toEqual(["repasse", "avisos"]);
+    // continuam também no lugar normal
+    expect(m.grupos[0].itens.map((i) => i.pagina)).toContain("repasse");
+    expect(m.avulsas.map((i) => i.pagina)).toContain("avisos");
+  });
+
+  it("sem fixadas usa Mais usadas", () => {
+    const m = montarMenu(NAV, VAZIO, { fixadas: [], mais_usadas: ["dashboard", "repasse"] });
+    expect(m.fixadas?.titulo).toBe("Mais usadas");
+    expect(m.fixadas?.itens.map((i) => i.pagina)).toEqual(["dashboard", "repasse"]);
+  });
+
+  it("fixada invisível não aparece", () => {
+    const m = montarMenu(NAV, VAZIO, { fixadas: ["page_views", "repasse"], mais_usadas: [] });
+    expect(m.fixadas?.itens.map((i) => i.pagina)).toEqual(["repasse"]);
+    const so = montarMenu(NAV, VAZIO, { fixadas: ["page_views"], mais_usadas: ["repasse"] });
+    expect(so.fixadas?.titulo).toBe("Mais usadas");
+    const nada = montarMenu(NAV, VAZIO, { fixadas: ["page_views"], mais_usadas: ["ti_x"] });
+    expect(nada.fixadas).toBeNull();
+  });
+
+  it("sem fixadas quando a API falha", () => {
+    expect(montarMenu(NAV, VAZIO, null).fixadas).toBeNull();
+    expect(montarMenu(NAV, VAZIO).fixadas).toBeNull();
+  });
+
+  it("grupoDaTela acha o grupo", () => {
+    const m = montarMenu(NAV, VAZIO);
+    expect(grupoDaTela(m, "repasse")?.nome).toBe("comercial");
+    expect(grupoDaTela(m, "dashboard")).toBeNull();
+    expect(grupoDaTela(m, "nao_existe")).toBeNull();
+  });
+
+  it("todo grupo tem ícone", () => {
+    expect(Object.fromEntries(GRUPOS_DO_MENU.map((g) => [g.nome, g.icone]))).toEqual({
+      comercial: "trending_up",
+      academico: "school",
+      premiacoes_internas: "emoji_events",
+      ferramentas: "construction",
+      vocacional: "explore",
+      meta: "campaign",
+      chamados: "support_agent",
+      ti: "memory",
+      sistema: "settings",
+    });
   });
 });
 
