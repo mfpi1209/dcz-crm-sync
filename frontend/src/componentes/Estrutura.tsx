@@ -4,7 +4,7 @@ import { ErroApi } from "../api";
 import { useFixadas } from "../fixadas";
 import { useMe } from "../me";
 import { grupoDaTela, montarMenu } from "../menu";
-import { NOMES_TELAS_NOVAS } from "../telas";
+import { NOMES_TELAS_NOVAS, TELAS_CHEIAS } from "../telas";
 import { TITULOS } from "../titulos";
 import { BarraTopo } from "./BarraTopo";
 import { BuscaTelas, type ItemBusca } from "./BuscaTelas";
@@ -87,6 +87,9 @@ export function Estrutura() {
   const comEstrela =
     !!conhecida && NOMES_TELAS_NOVAS.has(conhecida) && itensBusca.some((i) => i.pagina === conhecida);
 
+  // Tela cheia (iframe): a coluna tem a altura da janela e a tela, o que sobra abaixo da barra.
+  const cheia = !!conhecida && NOMES_TELAS_NOVAS.has(conhecida) && TELAS_CHEIAS.has(conhecida);
+
   return (
     <div className="min-h-screen md:flex">
       {gavetaAberta && (
@@ -108,7 +111,7 @@ export function Estrutura() {
         />
       </aside>
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className={`flex-1 min-w-0 flex flex-col ${cheia ? "h-dvh" : ""}`}>
         <BarraTopo
           titulo={titulo}
           grupo={grupo}
@@ -117,9 +120,9 @@ export function Estrutura() {
           onMenu={() => setGavetaAberta((v) => !v)}
           refMenu={botaoMenu}
         />
-        <main className="flex-1 min-w-0 px-4 py-5 md:px-8 md:py-6">
+        <main className={cheia ? "flex-1 min-w-0 min-h-0" : "flex-1 min-w-0 px-4 py-5 md:px-8 md:py-6"}>
           {/* A chave pela rota refaz a animação de entrada a cada troca de tela. */}
-          <div key={local.pathname} className="tela-entra">
+          <div key={local.pathname} className={`tela-entra ${cheia ? "h-full" : ""}`}>
             <Outlet />
           </div>
         </main>

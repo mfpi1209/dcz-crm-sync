@@ -4,6 +4,109 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-28 — Fase 4: Dashboard Comercial Bwipo no front novo (`/app/bwipo_comercial`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar o dashboard comercial oficial (`_bwipo_comercial.html` + `bwipo_comercial.js`) para o front novo, com os mesmos números. As rotas `/api/bwipo/painel*` de `routes/bwipo_sync.py` não mudam; venda, dono da venda, evasão e conflitos continuam no servidor.
+- **Tela nova (`frontend/src/paginas/BwipoComercial.tsx` + `paginas/bwipo-comercial/`):**
+  - filtros numa linha: ciclo e turma comerciais (só preenchem De/Até e o nível, e já buscam, como `bwcCicloChanged`/`bwcTurmaChanged`), polo, nível, agente, De–Até e **Atualizar**. Polo, nível, agente e datas mexem num rascunho até o Atualizar; Atualizar sem mudança busca o painel de novo;
+  - período inicial: meta/campanha mais recente (`/api/comercial-rgm/metas?categoria=matriculas` + `/api/premiacao/campanhas-periodos`), senão do dia 1 até hoje;
+  - nenhuma consulta da tela tenta de novo sozinha (`retry: false`; produção usaria 2 novas tentativas, `tentarDeNovo` em `api.ts`);
+  - `GET /api/bwipo/painel` só na abertura, no Atualizar, no ciclo/turma e depois de uma ação que grava (como a antiga). A cada resposta: YTD (`/extras`, mesmos parâmetros) e `POST /conflitos` (RGMs do recorte + período). Sem novas tentativas automáticas nessas rotas; `signal` do TanStack em todas as consultas;
+  - destaque (matrículas, em curso, RGM fora do padrão, YTD), evasão com chips e lista, fora do padrão com prefixos e lista, conflitos com "Creditar para" e Desfazer, média diária, ticket, vs 6 meses e vs 1 ano;
+  - matrículas por dia (clique filtra ranking, evasão e fora pelo dia; "limpar"), ranking (mesma conta do `_bwcRankingRows` ao filtrar dia), matrículas por agente (15 primeiros) e por polo;
+  - detalhe do agente (CPF/telefone de `POST /contatos`, busca, CSV igual, Contagem), Consultar RGM (candidatos, fixar, Atualizar do candidato pelo mini-sync, desfazer, contar venda), Atualizar lead (`POST /mini-sync`: número do card ou RGM de 8 dígitos, escolha quando há vários), Duplicatas, Sem data, Diagnóstico e Sync agentes (admin);
+  - confirmações e mensagens iguais às da antiga (fixar, desfazer, contar/deixar de contar). Mini-sync não tinha confirmação e continua sem.
+  - **Quem vê o quê:** admin = `me.role === "admin"` (como `body[data-role]`). Só admin vê Contar venda/Deixar de contar e Sync agentes; o usuário comum nunca chama `contar-venda`, `sync-agentes`, `consultores` nem `meta-agente`.
+- **Diferenças de propósito:**
+  - gráficos em colunas/barras de CSS (sem `chart.js`): por dia em colunas clicáveis (era linha), por agente em barras proporcionais;
+  - conflito sem decisão ganha a opção "Escolha o consultor" no seletor (na antiga, o primeiro consultor da lista não podia ser escolhido sem antes trocar);
+  - avisos "Sincronizando…" viram estado do botão; erros e sucessos vão para o toast do front novo;
+  - período de fallback com a data local (a antiga usava `toISOString`, que vira o dia depois das 21h);
+  - Ver Performance abre `/#minha_performance` sem o consultor pré-selecionado;
+  - o atalho "Atualizar" ao lado da busca de RGM no ranking saiu (repetia o "Atualizar lead"); o botão "Atualizar lead" fica na linha de ferramentas.
+- **Não reproduzido (fica na tela atual; o botão "Mais na tela atual" abre `/#bwipo_comercial`):** Metas (modal de metas e meta do consultor), Editar consultores (nome, ocultar, excluir, tombamento, depara Bwipo), Upload, Sync Kommo, Histórico, Congelar, + Novo ciclo, + Nova turma, Ver turmas e Solicitações (com o selo de pendentes). São painéis do Comercial antigo (`comercial_rgm.js`) que a antiga só reaproveitava, ou editores grandes; ficam para uma etapa própria. Nenhum número da tela depende deles.
+- **Menu antigo:** o item continua na tela antiga até o usuário aprovar (`TELAS_APROVADAS` segue só `page_views`).
+- **Testes:** `paginas/BwipoComercial.test.tsx` (37: formato, carga e período, números, título, erro/403/vazio, filtros e URLs exatas, ciclo/turma, ranking e dia, polos, evasão, fora do padrão, conflitos com confirmação e corpos, consultar RGM, mini-sync, detalhe do agente, duplicatas, sem data, diagnóstico, sync agentes, modo comum, contagem exata do painel/extras/conflitos depois de gravar e uma chamada só em erro 500 com a regra de novas tentativas de produção) e `tests/test_front_novo.py::test_bwipo_comercial_migrado_mas_menu_antigo_ainda_na_tela_antiga`.
+
+### 2026-11-28 — Fase 4: Minha Performance no front novo (`/app/minha_performance`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar a Minha Performance (home dos consultores) para o front novo, com os mesmos dados, números e regras de quem vê o quê da antiga (`_minha_performance.html` + `minha_performance.js`). `routes/minha_performance.py` não muda.
+- **Tela nova (`frontend/src/paginas/MinhaPerformance.tsx` + `paginas/minha-performance/`):**
+  - **quem vê o quê (igual à antiga):** consultor vê o próprio `kommo_user_id` (sem vínculo: aviso, nenhuma busca); login do Suporte Comercial sem Premiação vê a equipe (`suporte_equipe=1`); admin ou quem tem `premiacao_admin` escolhe a equipe, o suporte individual ou os demais agentes e começa na equipe. Só esses chamam `/api/minha-performance/agentes`. `?uid=` abre direto num consultor (o `navigateToPerformance` da antiga);
+  - **filtros numa linha:** consultor, Voltar ao meu painel, campanha (com Ativa/Histórica), abas Performance × Minhas matrículas e Atualizar à direita;
+  - **insights (~1 s):** só ao abrir, trocar consultor ou campanha, e no Atualizar (que refaz só insights e histórico). Na visão de suporte, a mesma mescla da antiga com `/api/comercial-rgm/data` (e o período de meta mais recente quando o da campanha não tem vendas) e o calendário pelo gráfico por dia (`formato.ts`, funções puras com teste);
+  - **Performance:** saldo, potencial, nível, matrículas, dias e medidor; níveis de meta; PIX do dia; ranking; conquistas; desbloqueie; momentum com minigráficos; sequência e heatmap; calendário; progresso por faixa; resumo financeiro; timeline; campanhas anteriores. Na visão de suporte: painel do time (meta, KPIs, matrículas por dia), PIX e calendário, como na antiga;
+  - **Minhas matrículas:** período padrão = meta mais recente (ou mês corrente); De/Até só valem no Filtrar (Limpar e Aplicar meta também buscam); oficiais com pílulas, busca, marca de fora do padrão e "Contar venda/Desfazer" só admin; minha lista com adicionar (oficiais, sync Bwipo com escolha no 409, manual), editar e excluir, com as mesmas validações e mensagens; solicitações de ajuste com lista e envio.
+  - **Gráficos:** `chart.js` 4.4.7 (a versão do painel antigo, só barras, linhas e área), com textos e grade nas cores do tema (`corCss`) e refeitos ao trocar o tema (`useTema` observa a classe do `<html>`). A tela é carregada sob demanda (`lazy` em `telas.tsx`), para o chart.js não pesar no pacote principal.
+- **Telas sob demanda (`App.tsx`):** toda tela vai num `Suspense` dentro de `componentes/ErroTela.tsx` (error boundary com `key` da rota). Se o pacote da tela não carregar (ex.: deploy novo), aparece "Não deu para abrir esta tela." com Recarregar, e o menu continua. As próximas telas com `lazy` só se registram em `TELAS_NOVAS`.
+- **Diferenças de propósito:**
+  - medidor do saldo e anel do PIX viraram número + barra (mesmos números e textos); sem contagem animada, confete nem brilho;
+  - a mensagem do saldo vem com HTML do servidor: só `<br>` e negrito viram elementos, o resto fica texto (a antiga usava `innerHTML`);
+  - calendário: a dica do dia vai no `title` (sem o balão flutuante);
+  - `alert`/`confirm`: erros de validação e de servidor aparecem no próprio formulário; avisos de sucesso no toast; excluir continua com `confirm`;
+  - erro do servidor aparece na tela (a antiga mostrava "Erro ao carregar dados." ou "Nenhuma campanha ativa" para um 400 de agente não vinculado);
+  - a lista de campanhas é lida uma vez (a antiga relia a cada troca);
+  - trocar consultor ou campanha fecha a aba Minhas matrículas e a desmonta: ao reabrir, o De/Até, a busca e as pílulas voltam ao período padrão (a antiga mantinha as datas digitadas no DOM); a aba escondida não busca nada;
+  - selo da fila de aceites do PIX e posição no quadro do ranking sem medalha seguem a antiga.
+- **Menu antigo:** o item continua na tela antiga até o usuário aprovar (`TELAS_APROVADAS` segue só `page_views`).
+- **Testes:** `paginas/MinhaPerformance.test.tsx` (37; inclui os casos negativos: `?uid=` ignorado para consultor e suporte, Premiação sem admin não conta venda, Desfazer com DELETE, aba escondida sem busca, tema dos gráficos) e `componentes/ErroTela.test.tsx` (1): regras puras, consultor (URLs exatas, números de cada bloco, troca de campanha, Atualizar, sem vínculo, sem campanha, erro), admin/Premiação/suporte (equipe por padrão, mescla do Comercial e o recuo de período, escolher e voltar, `?uid=`, suporte sem a lista de agentes) e Minhas matrículas (período padrão, contagens, Filtrar/Limpar/Aplicar meta, contar venda, adicionar com validações, erro ao salvar, sync Bwipo, editar/excluir, ajustes, erro da lista). `chart.js` é trocado por um falso nos testes para conferir os dados dos gráficos. Total no vitest: 158.
+
+### 2026-11-28 — Fase 4: Dashboard (home) no front novo (`/app/dashboard`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar a home de quem não é comercial (`_dashboard.html` + `dashboard.js`) para o front novo, no visual novo, com os mesmos números. As rotas de `routes/dashboard.py`, `kommo_sync.py` e `upload.py` não mudam.
+- **Tela nova (`frontend/src/paginas/Dashboard.tsx` + `paginas/dashboard/`):**
+  - **Quem vê o quê (pela categoria do `/api/me`, como o `loadDashboard`):** supervisor comercial e supervisor acadêmico veem um aviso com link para `/#dashboard` (painel deles não migrado) e a tela não busca nada da home; acadêmico vai direto para Meus Atendimentos se tiver a página, senão vê os 4 atalhos; os demais, o Dashboard Acadêmico. As rotas são todas da página `dashboard`, sem modo admin.
+  - **Funil de vendas:** `funnel-live` + `new-leads-today` ao abrir; ao terminar o funil, `yesterday-summary` (ou `funnel-yesterday`). KPIs (novos hoje, ganho ontem com leads e tendência, total, aceites com delta, conversão), etapas em destaque, visualização em barras com Perdidos. Funil "aquecendo": pergunta de novo sem forçar em 4 s e depois a cada 5 s, até 30 vezes (como `_dashPollFunnelWarm`); limite de 2 min por pedido; aviso de demora aos 8 s. "Atualizar" força (`?force=1`) só funil, leads de hoje e ontem. Não há atualização periódica (a antiga também não tinha).
+  - **Fonte de dados** (`/api/dashboard`), **matrículas por tipo** (Total, Novos = calouros+regresso+recompra com sub-cartões, Rematrículas/Veteranos, "!" com a regra), **situação** (cartões clicáveis, select no cabeçalho, transferências recebidas sob demanda), **saúde financeira** (só com `has_data`; cartões levam à Inadimplência), **polo** (nomes canônicos por `nomePolo`, cópia de `normalizePoloDisplay`), **nível**, **turma/ciclo**, **evolução** (chart.js, agregado/detalhado, clique no mês abre os dias) e **comparação de ciclos**.
+  - **Filtros:** ciclo (salvo em `localStorage["dash_ciclo_v2"]`; vale se ainda existe, senão o mais recente), nível e situação aplicam na hora, como na antiga; Limpar volta ao ciclo mais recente e zera o resto.
+  - **Servidor:** `/api/dashboard/students` é chamada uma vez por combinação de filtros (abertura = 1 chamada). Os blocos buscam um de cada vez, como o `_stuRefreshFiltered`: alunos → evolução → saúde → ciclos. Nenhuma consulta da tela tenta de novo sozinha. Todos os pedidos usam o `signal` do TanStack Query.
+  - **chart.js 4.4.7** (versão exata do painel antigo), registrado só com `LineController`, `LineElement`, `PointElement`, `CategoryScale`, `LinearScale` e `Tooltip`. Cores das séries e da grade vêm das variáveis `--grafico-*` de `estilo.css`, lidas na hora; o gráfico redesenha ao trocar o tema. Novas variáveis: `--positivo`, `--negativo`, `--aviso`, `--destaque`, `--fundo-positivo`, `--texto-sobre-cor`, `--funil-<etapa>`.
+  - **Carga sob demanda:** `telas.tsx` registra o Dashboard com `lazy()` e `App.tsx` envolve a tela em `Suspense` ("Carregando…"), para o chart.js sair do bundle principal (build de 28/11: `index` 261 kB / 82 kB gzip; pedaço `Dashboard` 203 kB / 66 kB gzip, com o chart.js).
+- **Diferenças de propósito:**
+  - período (De/Até) só vale no "Aplicar" (a antiga buscava a cada data mexida, refazendo a rota pesada);
+  - trocar qualquer filtro fecha o mês aberto no gráfico (a antiga ficava na granularidade diária sem o mês, um estado quebrado);
+  - os ciclos buscam de novo quando o nível muda por qualquer caminho, inclusive o clique em Graduação/Pós (a antiga só no `applyDashboardFilters` e mostrava ciclos do nível anterior); com o mesmo nível não buscam de novo; a saúde financeira não busca de novo quando só o período muda (a rota não usa período);
+  - `new-leads-today` vai uma vez na abertura (a antiga chamava duas);
+  - na abertura, `/api/dashboard`, funil, leads de hoje e `ciclos-distinct` saem juntos (a antiga esperava o `/api/dashboard` antes dos outros); a cadeia pesada (alunos → evolução → saúde → ciclos) continua um bloco por vez;
+  - "Atualizar" e "Tentar novamente" ficam desligados enquanto o funil aquece (a antiga os religava e deixava forçar no meio das tentativas);
+  - erros do servidor aparecem na tela (fonte, alunos, evolução, saúde, ciclos, transferências); a antiga deixava em branco ou só no console;
+  - sem a animação de contagem dos números e sem o selo de filtros do cabeçalho (os selects já mostram; a barra "Filtrando por" e a legenda do gráfico continuam); conversão com vírgula (`25,0%`).
+- **Não reproduzido:** os painéis de supervisor comercial e acadêmico (`_dashboard_supervisor*.html`, `dashboard_supervisor*.js`): ficam no painel atual, com link na tela nova.
+- **Menu antigo:** o item Dashboard do `_sidebar.html` continua na tela antiga até a aprovação; `tests/test_front_novo.py` ganhou `test_dashboard_migrado_mas_menu_antigo_ainda_na_tela_antiga`.
+- **Testes:** `paginas/Dashboard.test.tsx` (46: inclui desistir após as tentativas, sair da tela no aquecimento e gráfico destruído ao sair/trocar o tema; chart.js falso que guarda a configuração do gráfico). `menu.test.tsx` usava `dashboard` como exemplo de tela não migrada; passou a usar Avisos.
+
+### 2026-11-28 — Fase 4: Inadimplência no front novo (`/app/inadimplencia`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar a tela Inadimplência (`_inadimplencia.html` + `inadimplencia.js`) para o front novo, com os mesmos números. As rotas de `routes/inadimplencia.py` não mudam.
+- **Tela nova (`frontend/src/paginas/Inadimplencia.tsx` + `paginas/inadimplencia/`):**
+  - filtros numa linha (competência, últimos meses, data inicial e final), Limpar e **Aplicar** à direita. Só um filtro vale por vez, com as regras da antiga: trocar meses limpa competência e datas, trocar competência limpa as datas, trocar data limpa a competência; no Aplicar, datas > competência > meses;
+  - buscas iguais ao `loadInadimplencia`: `list`, `atual`, `comparar` (ou `comparar-periodo` com competência), `evolucao` e `reincidencia` (sem a competência), com os mesmos parâmetros e na mesma ordem; havendo snapshots, `evolucao-por-mes`. `competencias` busca na abertura e depois de apagar. Os pedidos usam o `signal` do TanStack Query;
+  - indicadores (taxa atual, inadimplentes com a variação "vs 7d" do `/comparar` sem competência, em curso);
+  - "Comparar 2 datas" (abre com o resultado automático; Comparar usa as datas do cartão e não manda a que estiver vazia; elas começam em 7 dias atrás e hoje em UTC, como a antiga), reincidência (4 faixas e o resumo), evolução (linha, botões 7d/30d/90d/Tudo que refazem só a evolução com `days=N&recent_months=all`; Aplicar desliga o botão), comparativo por competência (barras, campo Dia só redesenha; quando falta o dia, a barra fica mais clara e o rótulo ganha "(últ.)" em cinza; sem datas, o Dia fica vazio) e histórico;
+  - **única escrita:** Apagar no histórico, com o mesmo `confirm` ("Apagar snapshot X?\nEsta ação não pode ser desfeita.") e o mesmo `alert("Erro: …")`; depois recarrega a tela toda, competências inclusive.
+- **Gráficos:** `chart.js` 4.4.7 exato (o mesmo do painel antigo), registrado só com linha, barras, escalas, preenchimento e tooltip (`paginas/inadimplencia/grafico.ts`). As cores vêm das variáveis `--grafico-*` de `estilo.css` (claro e escuro), e os gráficos se redesenham quando o tema muda. A tela é carregada sob demanda (`lazy` em `telas.tsx`, `Suspense` em `App.tsx`), então o chart.js fica num pedaço à parte e não pesa no pacote principal.
+- **Quem vê:** todas as rotas exigem só a página `inadimplencia` (não há modo admin na antiga nem no servidor); usuário comum com a página vê a mesma tela, Apagar inclusive.
+- **Diferenças de propósito:**
+  - os filtros de cima só buscam no Aplicar (a antiga buscava a cada troca de select ou data, e digitar uma data disparava várias buscas com a reincidência, que é pesada). Aplicar com os mesmos filtros busca de novo, como a antiga;
+  - o comparativo por competência busca assim que a lista chega (a antiga esperava as cinco rotas);
+  - competências buscam só na abertura e depois de apagar (a antiga buscava de novo a cada Aplicar e Limpar);
+  - os botões 7d/30d/90d/Tudo não põem o Aplicar em "Aplicando…" (só a evolução busca);
+  - erro do servidor aparece na tela: na lista (no lugar do vazio), na comparação, nos gráficos e no resumo da reincidência (a antiga só escrevia no console);
+  - sem snapshots, os indicadores mostram "—" (a antiga deixava os números da busca anterior);
+  - o aviso de data sem upload usa ícone no lugar do "⚠"; filtros sobem para a primeira linha e os indicadores ficam abaixo.
+- **Menu antigo:** o item continua na tela antiga até a aprovação (`TELAS_APROVADAS` segue `{"page_views"}`).
+- **Testes:** `paginas/Inadimplencia.test.tsx` (37: inclui datas vazias no Comparar, troca de tema, saída da tela e faixa sem "Aplicando…"), com `chart.js` falso que guarda a configuração de cada gráfico (rótulos, valores, tooltips e marcas "(últ.)").
+
+### 2026-11-28 — Fase 4: Ferramentas em iframe no front novo (comparar_cursos, recomendacao_cursos, localizacao_polos, info_cursos)
+- **Modelo usado:** Claude Sonnet 5.5.
+- **Pedido:** migrar as 4 telas de ferramentas (`_ferramentas.html` + `ferramentas.js`). Nenhuma rota Python muda.
+- **Antigo → novo:** cada tela antiga é um iframe cujo `src` é `/static/eduit/app.html#<hash>` (fixo no JS, sem servidor nem variável de ambiente): `comparar`, `recomendacao`, `localizacao`, `informacoes-cursos`. A nova usa exatamente os mesmos endereços (`paginas/Ferramentas.tsx`).
+- **Componente reutilizável (`paginas/ferramentas/FerramentaIframe.tsx`):** iframe com `title` acessível, sobreposição discreta "Carregando…" até o `load` (volta ao trocar a URL) e, sem URL, aviso amigável em cartão (sem iframe).
+- **Tela cheia:** `telas.tsx` exporta `TELAS_CHEIAS`; nessas telas a `Estrutura` tira o padding do `main` e dá à coluna `h-dvh`, então o iframe encosta nas bordas e a altura é a janela menos a barra de cima (a antiga usava `calc(100vh - 56px)`).
+- **Diferenças de propósito:** fundo do iframe e da sobreposição seguem o tema (a antiga fixava `#0f172a`); a antiga mantinha o iframe montado enquanto escondido (guardava o estado ao trocar de aba) e a nova remonta e recarrega a cada visita; o estado "não configurada" é do componente (hoje as 4 URLs são fixas, então não aparece na prática).
+- **Menu antigo:** os links do `_sidebar.html` continuam como estão, até aprovação.
+- **Testes:** `paginas/Ferramentas.test.tsx` (10): URL e `title` de cada tela, carregando → carregado, permissão, nenhuma rota extra além da casca, tela cheia, sem URL, troca de URL.
+
 ### 2026-11-28 — Fase 4: Repasse no front novo (`/app/repasse`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** migrar a tela Repasse para o front novo, no visual novo, com os mesmos números e o mesmo comportamento da antiga (`_repasse.html` + `repasse.js`). As APIs de `routes/repasse.py` não mudam.

@@ -71,10 +71,10 @@ describe("montarMenu", () => {
   });
 
   it("tela migrada abre no front novo; as demais no painel atual", () => {
-    const m = montarMenu(nav({ paginas: ["dashboard", "page_views"] }), new Set(["page_views"]));
+    const m = montarMenu(nav({ paginas: ["avisos", "page_views"] }), new Set(["page_views"]));
     const porNome = Object.fromEntries(m.avulsas.map((i) => [i.pagina, i]));
     expect(porNome.page_views).toMatchObject({ nova: true, href: "/app/page_views", titulo: "Uso do Dashboard" });
-    expect(porNome.dashboard).toMatchObject({ nova: false, href: "/#dashboard" });
+    expect(porNome.avisos).toMatchObject({ nova: false, href: "/#avisos" });
   });
 
   it("Repasse já é tela do front novo", () => {
