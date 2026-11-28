@@ -109,6 +109,51 @@ h1, h2, h3 {
 
 .casca-menu {
   background: var(--bg-sidebar);
+  font-family: "Manrope", "Inter", sans-serif;
+}
+
+/* Marca: selo com a inicial + nome e legenda. */
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.marca-selo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--bg-card);
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: 0 0 0 4px var(--primary-light);
+}
+.marca-nome {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.marca-sub {
+  margin-top: 0.2rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Rolagem do menu some suavemente nas bordas. */
+.rolagem-menu {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent 100%);
+}
+
+.icone-item {
+  font-size: 19px;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .fundo-gaveta {
@@ -117,13 +162,12 @@ h1, h2, h3 {
 
 /* Rótulo de seção do menu: texto pequeno, sem caixa alta. */
 .secao-menu {
-  font-family: "Inter", sans-serif;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: var(--text-muted);
   padding: 0 0.75rem;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.4rem;
 }
 
 .busca-botao {
@@ -131,12 +175,14 @@ h1, h2, h3 {
   align-items: center;
   gap: 0.5rem;
   width: 100%;
-  padding: 0.5rem 0.65rem;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg-main);
+  height: 2.4rem;
+  padding: 0 0.7rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
   color: var(--text-muted);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 .busca-botao:hover {
   color: var(--text-secondary);
@@ -161,12 +207,14 @@ h1, h2, h3 {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.7rem;
   flex: 1;
   min-width: 0;
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
+  height: 2.15rem;
+  padding: 0 0.7rem;
+  border-radius: 10px;
+  font-size: 0.8438rem;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 /* Espaço à direita para a estrela do item. */
@@ -180,8 +228,15 @@ h1, h2, h3 {
 }
 .item-menu[aria-current="page"] {
   color: var(--primary);
-  font-weight: 600;
+  font-weight: 700;
   background: var(--primary-light);
+}
+.item-menu:hover .icone-item,
+.grupo-menu:hover .icone-item {
+  color: var(--text-secondary);
+}
+.item-menu[aria-current="page"] .icone-item {
+  color: var(--primary);
 }
 /* Barra lateral do item ativo. */
 .item-menu[aria-current="page"]::before {
@@ -198,13 +253,21 @@ h1, h2, h3 {
 .grupo-menu {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.7rem;
   width: 100%;
-  padding: 0.45rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  height: 2.15rem;
+  padding: 0 0.7rem;
+  border-radius: 10px;
+  font-size: 0.8438rem;
+  font-weight: 600;
   color: var(--text-secondary);
+}
+/* Grupo aberto: nome mais forte e ícone na cor do painel. */
+.grupo-menu[aria-expanded="true"] {
+  color: var(--text-primary);
+}
+.grupo-menu[aria-expanded="true"] .icone-item {
+  color: var(--primary);
 }
 .grupo-menu:hover {
   background: var(--surface-variant);
@@ -221,15 +284,23 @@ h1, h2, h3 {
 .grupo-itens[hidden] {
   display: none;
 }
+/* Subitens presos a uma linha-guia que desce do ícone do grupo. */
 .grupo-itens {
-  margin: 0.1rem 0 0.35rem;
+  position: relative;
+  margin: 0.15rem 0 0.4rem 1.28rem;
+  padding-left: 0.55rem;
+  border-left: 1px solid var(--border);
 }
-/* Subitens alinhados com o nome do grupo (depois do ícone). */
 .grupo-itens .item-menu {
-  padding-left: 2.5rem;
+  height: 2rem;
+  padding-left: 0.7rem;
+  font-size: 0.8125rem;
 }
+/* Tela aberta acende o trecho da linha-guia. */
 .grupo-itens .item-menu[aria-current="page"]::before {
-  left: 1.5rem;
+  left: calc(-0.55rem - 1px);
+  top: 0.4rem;
+  bottom: 0.4rem;
 }
 
 /* ---------- Controles das telas: todos com a mesma altura (36px) ---------- */
@@ -398,12 +469,16 @@ h1, h2, h3 {
   font-variation-settings: "FILL" 1;
 }
 
+/* Rodapé em cartão: usuário e sair. */
 .rodape-menu {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  padding: 0.75rem 0.75rem 0.75rem 1rem;
-  border-top: 1px solid var(--border-subtle);
+  gap: 0.65rem;
+  margin: 0.5rem 0.75rem 0.75rem;
+  padding: 0.55rem 0.4rem 0.55rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
 }
 .avatar {
   display: inline-flex;

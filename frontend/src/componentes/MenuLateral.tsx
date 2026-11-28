@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { MAX_FIXADAS, useFixadas } from "../fixadas";
 import type { GrupoMenu, ItemMenu, Menu } from "../menu";
 import { grupoDaTela } from "../menu";
+import { iconeDaTela } from "../icones";
 
 /** Grupos abertos ficam no navegador (nomes dos grupos, em JSON). */
 export const CHAVE_GRUPOS = "eduit-menu-grupos";
@@ -57,17 +58,38 @@ function EstrelaItem({ i, fixadas }: { i: ItemMenu; fixadas: Fixadas }) {
   );
 }
 
-function Item({ i, fixadas, onEscolher }: { i: ItemMenu; fixadas: Fixadas; onEscolher: () => void }) {
+function Item({
+  i,
+  fixadas,
+  onEscolher,
+  comIcone = false,
+}: {
+  i: ItemMenu;
+  fixadas: Fixadas;
+  onEscolher: () => void;
+  comIcone?: boolean;
+}) {
+  // Itens soltos (Fixadas, Geral) levam ícone; subitens de grupo, a linha-guia.
+  const conteudo = (
+    <>
+      {comIcone && (
+        <span className="material-symbols-outlined icone-item" aria-hidden>
+          {iconeDaTela(i.pagina)}
+        </span>
+      )}
+      <span className="truncate">{i.titulo}</span>
+    </>
+  );
   return (
     <li className="linha-menu">
       {i.nova ? (
         <NavLink to={`/${i.pagina}`} className="item-menu" onClick={onEscolher}>
-          <span className="truncate">{i.titulo}</span>
+          {conteudo}
         </NavLink>
       ) : (
         // Tela ainda no painel atual: navegação normal do navegador.
         <a href={i.href} className="item-menu" onClick={onEscolher}>
-          <span className="truncate">{i.titulo}</span>
+          {conteudo}
         </a>
       )}
       <EstrelaItem i={i} fixadas={fixadas} />
@@ -95,7 +117,7 @@ function Secao({
       </h2>
       <ul aria-labelledby={id} className="flex flex-col gap-px">
         {itens.map((i) => (
-          <Item key={i.pagina} i={i} fixadas={fixadas} onEscolher={onEscolher} />
+          <Item key={i.pagina} i={i} fixadas={fixadas} onEscolher={onEscolher} comIcone />
         ))}
       </ul>
     </section>
@@ -119,7 +141,7 @@ function Grupo({
   return (
     <div>
       <button type="button" className="grupo-menu" aria-expanded={aberto} aria-controls={idItens} onClick={alternar}>
-        <span className="material-symbols-outlined" aria-hidden>
+        <span className="material-symbols-outlined icone-item" aria-hidden>
           {g.icone}
         </span>
         <span className="flex-1 text-left truncate">{g.titulo}</span>
@@ -176,9 +198,15 @@ export function MenuLateral({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-5 pt-5 pb-4">
-        <a href="/" className="font-headline text-xl font-extrabold text-primary" title="Painel atual">
-          eduit.
+      <div className="px-4 pt-5 pb-4">
+        <a href="/" className="marca" title="Painel atual">
+          <span className="marca-selo" aria-hidden>
+            e
+          </span>
+          <span className="flex flex-col leading-none">
+            <span className="marca-nome">eduit.</span>
+            <span className="marca-sub">Painel de gestão</span>
+          </span>
         </a>
       </div>
       <div className="px-3 pb-3">
@@ -191,7 +219,7 @@ export function MenuLateral({
         </button>
       </div>
 
-      <nav aria-label="Menu principal" className="flex-1 overflow-y-auto px-3 pb-4 flex flex-col gap-5">
+      <nav aria-label="Menu principal" className="rolagem-menu flex-1 overflow-y-auto px-3 pt-1 pb-4 flex flex-col gap-5">
         {menu.fixadas && (
           <Secao
             id="secao-fixadas"
@@ -224,8 +252,13 @@ export function MenuLateral({
         <span className="avatar" aria-hidden>
           {iniciais(nome)}
         </span>
-        <span className="flex-1 min-w-0 truncate text-sm" style={{ color: "var(--text-primary)" }}>
-          {nome}
+        <span className="flex-1 min-w-0 flex flex-col leading-tight">
+          <span className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            {nome}
+          </span>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Conectado
+          </span>
         </span>
         <a href="/logout" className="botao-icone" aria-label="Sair" title="Sair">
           <span className="material-symbols-outlined" aria-hidden>
