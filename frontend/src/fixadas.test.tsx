@@ -64,6 +64,19 @@ describe("useFixadas", () => {
     expect(result.current.dados?.mais_usadas).toEqual(["x"]);
   });
 
+  it("sucesso mostra confirmação (não é erro) e o X fecha", async () => {
+    falso({ fixadas: ["a"], mais_usadas: [] }, (c) => json({ fixadas: c.paginas }));
+    const { result } = montar();
+    await waitFor(() => expect(result.current.dados).not.toBeNull());
+    act(() => result.current.alternar("b"));
+    await waitFor(() => expect(result.current.aviso).toEqual({ tipo: "sucesso", texto: "Tela fixada no menu." }));
+    expect(result.current.erro).toBeNull();
+    act(() => result.current.fecharAviso());
+    await waitFor(() => expect(result.current.aviso).toBeNull());
+    act(() => result.current.alternar("b"));
+    await waitFor(() => expect(result.current.aviso?.texto).toBe("Tela removida das fixadas."));
+  });
+
   it("alternar remove", async () => {
     const puts = falso({ fixadas: ["a", "b"], mais_usadas: [] }, (c) => json({ fixadas: c.paginas }));
     const { result } = montar();

@@ -217,7 +217,7 @@ export function UsoDoDashboard() {
                           <div className="h-1.5 rounded-full" aria-hidden style={{ background: "var(--bg-elevated)" }}>
                             <div
                               data-testid={`barra-${r.page}`}
-                              className="h-1.5 rounded-full"
+                              className="h-1.5 rounded-full barra-animada"
                               style={{ width: `${(r.hits / maxHits) * 100}%`, background: "var(--primary)" }}
                             />
                           </div>

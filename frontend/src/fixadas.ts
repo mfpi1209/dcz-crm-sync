@@ -15,13 +15,16 @@ export const ERRO_FIXADAS = "Não deu para salvar as fixadas. Tente de novo.";
 
 /** Quanto tempo o aviso de erro fica na tela. */
 export const TEMPO_AVISO_MS = 4000;
+/** Confirmação de sucesso some mais rápido. */
+export const TEMPO_SUCESSO_MS = 2500;
 
 const CHAVE = ["fixadas"] as const;
 /** Fora do prefixo ["fixadas"] para não ser invalidada junto com a lista. */
 const CHAVE_ERRO = ["aviso-fixadas"] as const;
 
 /** Aviso compartilhado entre a barra de cima e o menu (cada um usa o hook). */
-interface Aviso {
+export interface Aviso {
+  tipo: "erro" | "sucesso";
   texto: string;
 }
 
@@ -43,6 +46,8 @@ function textoDoErro(erro: unknown): string {
 export function useFixadas(): {
   dados: DadosFixadas | null;
   erro: string | null;
+  aviso: Aviso | null;
+  fecharAviso: () => void;
   alternar: (pagina: string) => void;
   fixada: (pagina: string) => boolean;
 } {
@@ -64,11 +69,19 @@ export function useFixadas(): {
     if (cliente.getQueryData(CHAVE_ERRO)) cliente.setQueryData(CHAVE_ERRO, null);
   }
 
+  /** Mostra o aviso e o tira sozinho depois de `ms` (se outro não tiver chegado). */
+  function mostrarAviso(novo: Aviso, ms: number) {
+    cliente.setQueryData(CHAVE_ERRO, novo);
+    setTimeout(() => {
+      if (cliente.getQueryData(CHAVE_ERRO) === novo) cliente.setQueryData(CHAVE_ERRO, null);
+    }, ms);
+  }
+
   const salvar = useMutation({
     mutationKey: CHAVE,
     // Um clique de cada vez: o PUT seguinte só sai depois que o anterior responder.
     scope: { id: "fixadas" },
-    mutationFn: ({ paginas }: { paginas: string[]; anterior: DadosFixadas }) =>
+    mutationFn: ({ paginas }: { paginas: string[]; anterior: DadosFixadas; mensagem: string }) =>
       api<{ fixadas: string[] }>("/api/me/fixadas", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -77,13 +90,10 @@ export function useFixadas(): {
     onError: (erro, { anterior }) => {
       // Volta para a lista de antes do clique e mostra um aviso discreto.
       cliente.setQueryData(CHAVE, anterior);
-      const novo: Aviso = { texto: textoDoErro(erro) };
-      cliente.setQueryData(CHAVE_ERRO, novo);
-      setTimeout(() => {
-        if (cliente.getQueryData(CHAVE_ERRO) === novo) cliente.setQueryData(CHAVE_ERRO, null);
-      }, TEMPO_AVISO_MS);
+      mostrarAviso({ tipo: "erro", texto: textoDoErro(erro) }, TEMPO_AVISO_MS);
     },
-    onSuccess: (resposta) => {
+    onSuccess: (resposta, { mensagem }) => {
+      mostrarAviso({ tipo: "sucesso", texto: mensagem }, TEMPO_SUCESSO_MS);
       // A resposta do servidor é a verdade; as mais usadas não mudam.
       const atual = cliente.getQueryData<DadosFixadas | null>(CHAVE);
       if (atual) cliente.setQueryData<DadosFixadas>(CHAVE, { ...atual, fixadas: resposta.fixadas });
@@ -97,12 +107,12 @@ export function useFixadas(): {
   });
 
   /** Atualiza a tela na hora (otimista) e só depois envia. */
-  function enviar(atual: DadosFixadas, paginas: string[]) {
+  function enviar(atual: DadosFixadas, paginas: string[], mensagem: string) {
     // Cancela uma leitura em andamento para ela não apagar o otimista
     // (o cancelamento é imediato; a promessa só avisa quando terminou).
     void cliente.cancelQueries({ queryKey: CHAVE });
     cliente.setQueryData<DadosFixadas>(CHAVE, { ...atual, fixadas: paginas });
-    salvar.mutate({ paginas, anterior: atual });
+    salvar.mutate({ paginas, anterior: atual, mensagem });
   }
 
   // Dado em cache continua valendo se uma releitura falhar.
@@ -110,16 +120,18 @@ export function useFixadas(): {
 
   return {
     dados,
-    erro: aviso.data?.texto ?? null,
+    erro: aviso.data?.tipo === "erro" ? aviso.data.texto : null,
+    aviso: aviso.data ?? null,
+    fecharAviso: limparAviso,
     fixada: (pagina) => dados?.fixadas.includes(pagina) ?? false,
     alternar: (pagina) => {
       limparAviso();
       const atual = cliente.getQueryData<DadosFixadas | null>(CHAVE);
       if (!atual) return;
       if (atual.fixadas.includes(pagina)) {
-        enviar(atual, atual.fixadas.filter((p) => p !== pagina));
+        enviar(atual, atual.fixadas.filter((p) => p !== pagina), "Tela removida das fixadas.");
       } else if (atual.fixadas.length < MAX_FIXADAS) {
-        enviar(atual, [...atual.fixadas, pagina]);
+        enviar(atual, [...atual.fixadas, pagina], "Tela fixada no menu.");
       }
     },
   };

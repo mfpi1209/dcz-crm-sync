@@ -1,6 +1,7 @@
 import { type Ref, useState } from "react";
 import { useAvisosNaoLidos } from "../avisos";
 import { MAX_FIXADAS, useFixadas } from "../fixadas";
+import { Toast } from "./Toast";
 
 type Tema = "dark" | "light";
 
@@ -83,19 +84,10 @@ function BotaoTema() {
   );
 }
 
-/** Aviso discreto quando fixar/desafixar falha (a estrela já voltou ao estado anterior). */
+/** Aviso ao fixar/desafixar: confirmação ou erro (a estrela já voltou ao estado anterior). */
 function AvisoFixadas() {
-  const { erro } = useFixadas();
-  return (
-    <span
-      role="status"
-      className="text-xs max-w-[16rem] truncate"
-      style={{ color: "var(--text-muted)" }}
-      title={erro ?? undefined}
-    >
-      {erro}
-    </span>
-  );
+  const { aviso, fecharAviso } = useFixadas();
+  return <Toast aviso={aviso} onFechar={fecharAviso} />;
 }
 
 /**

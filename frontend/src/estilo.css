@@ -562,3 +562,184 @@ h1, h2, h3 {
     padding-top: 1rem;
   }
 }
+
+/* ---------- Movimento: transições curtas e suaves ---------- */
+
+:root {
+  --curva-suave: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.item-menu,
+.grupo-menu,
+.botao-icone,
+.botao-texto,
+.busca-botao,
+.estrela-item,
+.controle,
+.segmentado button,
+.busca-item,
+.toast-fechar {
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, opacity 160ms ease,
+    box-shadow 160ms ease;
+}
+
+/* Conteúdo da tela aparece com um esmaecimento curto ao trocar de tela. */
+@keyframes tela-entra {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.tela-entra {
+  animation: tela-entra 260ms var(--curva-suave);
+}
+
+/* Grupo do menu abre deslizando. */
+@keyframes grupo-abre {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.grupo-itens:not([hidden]) {
+  animation: grupo-abre 200ms var(--curva-suave);
+}
+
+/* Gaveta do celular entra da esquerda; o fundo escurece junto. */
+@keyframes gaveta-entra {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes esmaece {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (max-width: 767px) {
+  .gaveta-aberta {
+    animation: gaveta-entra 280ms var(--curva-suave);
+  }
+}
+.fundo-gaveta {
+  animation: esmaece 220ms ease;
+}
+
+/* Busca abre com um leve zoom. */
+@keyframes busca-entra {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.busca-fundo {
+  background: rgba(2, 8, 20, 0.45);
+  animation: esmaece 180ms ease;
+}
+.busca-painel {
+  animation: busca-entra 220ms var(--curva-suave);
+}
+
+/* Barras de proporção crescem a partir da esquerda quando os dados chegam. */
+@keyframes barra-cresce {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.barra-animada {
+  transform-origin: left center;
+  animation: barra-cresce 700ms var(--curva-suave);
+}
+
+/* Estrela "pula" ao fixar. */
+@keyframes estrela-pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.icone-cheio {
+  animation: estrela-pop 320ms var(--curva-suave);
+}
+
+/* ---------- Aviso flutuante (toast) ---------- */
+
+.toast-area {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 70;
+  width: min(24rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+.toast {
+  --cor: #e1365a;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 0.75rem 0.9rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--cor) 22%, transparent) 0%, transparent 38%),
+    var(--bg-card);
+  box-shadow: 0 18px 40px -16px rgba(2, 8, 20, 0.55);
+  color: var(--text-primary);
+}
+.toast-sucesso { --cor: #03a65a; }
+.toast-erro { --cor: #e1365a; }
+.toast-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  background: var(--cor);
+  color: #fff;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--cor) 22%, transparent);
+}
+.toast-icone .material-symbols-outlined {
+  font-size: 20px;
+  font-weight: 700;
+}
+.toast-titulo {
+  font-family: "Manrope", "Inter", sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.toast-texto {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.toast-fechar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+.toast-fechar:hover {
+  background: var(--surface-variant);
+  color: var(--text-primary);
+}
+.toast-fechar:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+@keyframes toast-entra {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes toast-sai {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(10px); }
+}
+.toast-entra { animation: toast-entra 320ms var(--curva-suave); }
+.toast-sai { animation: toast-sai 220ms ease forwards; }
+
+/* Quem desligou animações no sistema vê tudo na hora, sem movimento. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -96,7 +96,7 @@ export function Estrutura() {
       <aside
         id="menu-lateral"
         aria-label="Menu"
-        className={`casca-menu ${gavetaAberta ? "flex" : "hidden"} md:flex flex-col fixed md:sticky top-0 left-0 z-40 h-dvh w-[264px] max-w-[85vw] shrink-0 border-r`}
+        className={`casca-menu ${gavetaAberta ? "flex gaveta-aberta" : "hidden"} md:flex flex-col fixed md:sticky top-0 left-0 z-40 h-dvh w-[264px] max-w-[85vw] shrink-0 border-r`}
         style={{ borderColor: "var(--border-subtle)" }}
       >
         <MenuLateral
@@ -118,7 +118,10 @@ export function Estrutura() {
           refMenu={botaoMenu}
         />
         <main className="flex-1 min-w-0 px-4 py-5 md:px-8 md:py-6">
-          <Outlet />
+          {/* A chave pela rota refaz a animação de entrada a cada troca de tela. */}
+          <div key={local.pathname} className="tela-entra">
+            <Outlet />
+          </div>
         </main>
       </div>
 
