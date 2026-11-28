@@ -4,6 +4,32 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-27 — Fase 4: visual novo do front (`/app/`) — menu agrupado, fixadas no banco, busca Ctrl K
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** o usuário achou feia a casca da etapa 2 e quis um visual novo, moderno, com as cores do eduit e as funções atuais. Entre 3 propostas, escolheu a **C** (menu lateral agrupado, com fixadas) mais a busca Ctrl K e as barras de proporção da A. Desenho: `docs/superpowers/specs/2026-11-27-visual-novo-front-design.md`; plano: `docs/superpowers/plans/2026-11-27-visual-novo-front.md`.
+- **Menu (`frontend/src/componentes/MenuLateral.tsx`):**
+  - estrutura: marca, botão "Buscar tela" (Ctrl K), Fixadas ou Mais usadas, Geral, grupos com ícone que abrem e fecham, usuário e Sair no rodapé;
+  - o estado aberto/fechado fica em `localStorage["eduit-menu-grupos"]`, e o grupo da tela atual sempre abre;
+  - no celular vira gaveta (`h-dvh`), aberta pelo botão "Menu" da barra de cima, que é uma barra só.
+- **Barra de cima (`BarraTopo.tsx`):** grupo, título da tela, estrela para fixar (só em tela migrada e visível no menu), sino com os não lidos (`/api/avisos/nao-lidos`, a cada 2 min; o clique leva a `/#avisos`) e tema. A tela não repete o título; as ações (Atualizar) ficam na própria tela.
+- **Fixadas:**
+  - **Banco:** tabela `nav_fixadas` (`user_id` → `app_users` ON DELETE CASCADE, `page`, `ordem`; PK `(user_id, page)`), criada em `db._ensure_nav_fixadas_table()` no boot. Só criação.
+  - **API (`routes/fixadas.py`, rotas do próprio usuário):**
+    - `GET /api/me/fixadas` devolve `{fixadas, mais_usadas}`. Mais usadas = top 3 de `page_views` em 30 dias.
+    - `PUT /api/me/fixadas` com `{paginas}` substitui a lista. São no máximo 8, sem repetir, todas conhecidas e visíveis; senão, 400.
+    - Login 0: GET devolve listas vazias e PUT dá 400.
+    - Erro de banco no GET devolve 200 com listas vazias, para o menu nunca quebrar.
+  - **Regra de visibilidade:** `navegacao.Menu.visivel(p)` = `pode(p)`, e o grupo de `p` está visível em `secoes()`. Fixadas e Mais usadas seguem essa regra; o front ainda cruza com os itens do próprio menu. Assim, ninguém fixa nem vê tela que o menu esconde (ex.: TI para não admin), e uma permissão tirada faz a fixada sumir sozinha.
+  - **Front (`frontend/src/fixadas.ts`):** atualização otimista. As mutações rodam em série (`scope`) e, no fim, a lista é relida do servidor. Um erro volta a lista e mostra aviso discreto (`role="status"`). Resposta fora do formato vira `null`, e a seção some sem derrubar o menu.
+- **Busca (`BuscaTelas.tsx`, `busca.ts`):** Ctrl/Cmd+K em qualquer lugar. Ignora acento e maiúscula, e "começa com" vem antes de "contém". Lista só as telas do menu. Usa teclado (setas, Enter, Esc, Tab preso no diálogo) e devolve o foco ao fechar. Tela migrada abre em `/app/<tela>`, as demais em `/#<tela>`.
+- **Uso do Dashboard no visual novo:** períodos em pílulas e cartões "Acessos", "Telas usadas: N de M telas" (M = linhas das duas tabelas) e "Telas sem uso". A tabela ganha uma barra proporcional aos acessos, em que a maior linha vale 100%.
+- **Estilo:** rótulos em sentença normal (`.rotulo` sem caixa alta), com os tokens de cor de `estilo.css` para os temas claro e escuro. Ícones Material Symbols por grupo: comercial `trending_up`, acadêmico `school`, premiações `emoji_events`, ferramentas `construction`, vocacional `explore`, meta `campaign`, chamados `support_agent`, TI `memory`, sistema `settings`.
+- **Não muda:** o painel atual em `/`, as permissões das APIs e o registro de uso.
+- **Processo:** construído tarefa a tarefa por agentes, cada uma com revisão própria, e depois uma revisão do ramo inteiro com uma rodada de correções (barra única no celular, aviso de erro, `h-dvh`, PUTs em série, validação da resposta, estrela pela regra `visivel`, Esc com busca e gaveta, rótulos).
+- **Testes:**
+  - `tests/test_fixadas.py`, mais `visivel` em `tests/test_navegacao.py`.
+  - No front: `fixadas.test.tsx`, `componentes/casca.test.tsx`, `busca.test.ts`, `componentes/BuscaTelas.test.tsx`, `paginas/UsoDoDashboard.test.tsx` e `menu.test.tsx` (86 testes no vitest).
+
 ### 2026-11-27 — Modernização, Fase 4, etapa 3: primeira tela no front novo (Uso do Dashboard, `page_views`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** tela piloto da migração. A escolhida é só de leitura e só de admin, então ninguém da operação é afetado.

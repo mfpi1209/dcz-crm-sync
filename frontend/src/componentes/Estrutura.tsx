@@ -1,32 +1,74 @@
-import { useMemo, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Outlet, useLocation, useMatch } from "react-router-dom";
 import { ErroApi } from "../api";
+import { useFixadas } from "../fixadas";
 import { useMe } from "../me";
-import { montarMenu } from "../menu";
+import { grupoDaTela, montarMenu } from "../menu";
 import { NOMES_TELAS_NOVAS } from "../telas";
+import { TITULOS } from "../titulos";
+import { BarraTopo } from "./BarraTopo";
+import { BuscaTelas, type ItemBusca } from "./BuscaTelas";
 import { MenuLateral } from "./MenuLateral";
 
-function alternarTema() {
-  const html = document.documentElement;
-  const novo = html.classList.contains("dark") ? "light" : "dark";
-  html.classList.remove("dark", "light");
-  html.classList.add(novo);
-  try {
-    localStorage.setItem("eduit-theme", novo);
-  } catch {
-    /* navegador sem armazenamento: vale só nesta aba */
-  }
-}
-
+/**
+ * Casca do front novo: menu lateral (gaveta no celular), barra de cima com o
+ * título da rota e, embaixo, a tela.
+ */
 export function Estrutura() {
   const me = useMe();
-  const [menuAberto, setMenuAberto] = useState(false);
-  const menu = useMemo(() => (me.data ? montarMenu(me.data.nav, NOMES_TELAS_NOVAS) : null), [me.data]);
+  // useFixadas já descarta resposta fora do formato (dados = null).
+  const { dados: fixadas } = useFixadas();
+  const local = useLocation();
+  const pagina = useMatch("/:pagina")?.params.pagina ?? null;
+  const [gavetaAberta, setGavetaAberta] = useState(false);
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const botaoMenu = useRef<HTMLButtonElement>(null);
+
+  const menu = useMemo(
+    () => (me.data ? montarMenu(me.data.nav, NOMES_TELAS_NOVAS, fixadas) : null),
+    [me.data, fixadas],
+  );
+
+  // Telas da busca: avulsas + grupos (as fixadas só repetem o que já está aí).
+  const itensBusca = useMemo<ItemBusca[]>(
+    () =>
+      menu ? [...menu.avulsas, ...menu.grupos.flatMap((g) => g.itens.map((i) => ({ ...i, grupo: g.titulo })))] : [],
+    [menu],
+  );
+
+  // Ctrl/Cmd+K abre (ou fecha) a busca de telas.
+  useEffect(() => {
+    function atalho(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setBuscaAberta((v) => !v);
+      }
+    }
+    document.addEventListener("keydown", atalho);
+    return () => document.removeEventListener("keydown", atalho);
+  }, []);
+
+  // Trocou de tela: a gaveta fecha.
+  useEffect(() => setGavetaAberta(false), [local.pathname]);
+
+  // Esc fecha a gaveta e devolve o foco ao botão Menu.
+  useEffect(() => {
+    if (!gavetaAberta) return;
+    function tecla(e: KeyboardEvent) {
+      // Busca aberta trata o Esc antes (e marca defaultPrevented): fecha só ela.
+      if (e.key === "Escape" && !e.defaultPrevented) {
+        setGavetaAberta(false);
+        botaoMenu.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", tecla);
+    return () => document.removeEventListener("keydown", tecla);
+  }, [gavetaAberta]);
 
   if (me.isPending) {
     return <p className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>Carregando…</p>;
   }
-  if (me.isError) {
+  if (me.isError || !menu) {
     const msg = me.error instanceof ErroApi ? me.error.message : "Não foi possível carregar o painel.";
     return (
       <div className="p-8">
@@ -36,50 +78,54 @@ export function Estrutura() {
     );
   }
 
+  // Título vem da rota: início, tela do menu ou endereço desconhecido.
+  const inicio = local.pathname === "/";
+  const conhecida = pagina !== null && Object.prototype.hasOwnProperty.call(TITULOS, pagina) ? pagina : null;
+  const titulo = inicio ? "Início" : conhecida ? TITULOS[conhecida] : "Painel eduit";
+  const grupo = conhecida ? grupoDaTela(menu, conhecida)?.titulo : undefined;
+  // Estrela só em tela migrada que está no menu (mesma regra `visivel` do servidor).
+  const comEstrela =
+    !!conhecida && NOMES_TELAS_NOVAS.has(conhecida) && itensBusca.some((i) => i.pagina === conhecida);
+
   return (
     <div className="min-h-screen md:flex">
-      <header
-        className="md:hidden flex items-center justify-between px-4 py-3 border-b"
-        style={{ borderColor: "var(--border)" }}
-      >
-        <span className="font-headline font-extrabold text-primary">eduit.</span>
-        <button
-          type="button"
-          className="item-menu"
-          aria-expanded={menuAberto}
-          aria-controls="menu-lateral"
-          onClick={() => setMenuAberto((v) => !v)}
-        >
-          <span className="material-symbols-outlined" aria-hidden>menu</span>
-          Menu
-        </button>
-      </header>
+      {gavetaAberta && (
+        <div className="md:hidden fixed inset-0 z-30 fundo-gaveta" aria-hidden onClick={() => setGavetaAberta(false)} />
+      )}
+
       <aside
         id="menu-lateral"
-        className={`${menuAberto ? "block" : "hidden"} md:block md:w-64 shrink-0 p-4 border-r overflow-y-auto md:h-screen md:sticky md:top-0`}
-        style={{ background: "var(--bg-card)", borderColor: "var(--border)" }}
+        aria-label="Menu"
+        className={`casca-menu ${gavetaAberta ? "flex gaveta-aberta" : "hidden"} md:flex flex-col fixed md:sticky top-0 left-0 z-40 h-dvh w-[264px] max-w-[85vw] shrink-0 border-r`}
+        style={{ borderColor: "var(--border-subtle)" }}
       >
-        <div className="hidden md:block px-3 mb-6">
-          <a href="/" className="font-headline text-xl font-extrabold text-primary">eduit.</a>
-        </div>
-        {menu && <MenuLateral menu={menu} />}
-        <div className="mt-6 pt-4 border-t flex flex-col gap-0.5" style={{ borderColor: "var(--border)" }}>
-          <span className="px-3 text-xs truncate" style={{ color: "var(--text-muted)" }}>
-            {me.data.display_name || me.data.username}
-          </span>
-          <button type="button" className="item-menu" onClick={alternarTema}>
-            <span className="material-symbols-outlined" aria-hidden>contrast</span>
-            Tema claro/escuro
-          </button>
-          <a href="/logout" className="item-menu">
-            <span className="material-symbols-outlined" aria-hidden>logout</span>
-            Sair
-          </a>
-        </div>
+        <MenuLateral
+          menu={menu}
+          paginaAtual={pagina}
+          nome={me.data.display_name || me.data.username}
+          onBuscar={() => setBuscaAberta(true)}
+          onEscolher={() => setGavetaAberta(false)}
+        />
       </aside>
-      <main className="flex-1 min-w-0 p-4 md:p-8">
-        <Outlet />
-      </main>
+
+      <div className="flex-1 min-w-0 flex flex-col">
+        <BarraTopo
+          titulo={titulo}
+          grupo={grupo}
+          pagina={comEstrela && conhecida ? conhecida : undefined}
+          menuAberto={gavetaAberta}
+          onMenu={() => setGavetaAberta((v) => !v)}
+          refMenu={botaoMenu}
+        />
+        <main className="flex-1 min-w-0 px-4 py-5 md:px-8 md:py-6">
+          {/* A chave pela rota refaz a animação de entrada a cada troca de tela. */}
+          <div key={local.pathname} className="tela-entra">
+            <Outlet />
+          </div>
+        </main>
+      </div>
+
+      <BuscaTelas aberta={buscaAberta} itens={itensBusca} onFechar={() => setBuscaAberta(false)} />
     </div>
   );
 }

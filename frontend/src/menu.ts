@@ -17,25 +17,33 @@ export interface ItemMenu {
 export interface GrupoMenu {
   nome: string;
   titulo: string;
+  icone: string;
+  itens: ItemMenu[];
+}
+
+/** Seção do topo do menu: as fixadas do usuário ou, sem elas, as mais usadas. */
+export interface SecaoFixadas {
+  titulo: "Fixadas" | "Mais usadas";
   itens: ItemMenu[];
 }
 
 export interface Menu {
+  fixadas: SecaoFixadas | null;
   avulsas: ItemMenu[];
   grupos: GrupoMenu[];
 }
 
 /** Grupos na ordem do menu lateral. Subgrupos de Sistema ficam dentro de "sistema". */
-export const GRUPOS_DO_MENU: { nome: string; titulo: string }[] = [
-  { nome: "comercial", titulo: "Comercial" },
-  { nome: "academico", titulo: "Acadêmico" },
-  { nome: "premiacoes_internas", titulo: "Premiações" },
-  { nome: "ferramentas", titulo: "Ferramentas" },
-  { nome: "vocacional", titulo: "Vocacional" },
-  { nome: "meta", titulo: "Campanhas Meta" },
-  { nome: "chamados", titulo: "Chamados" },
-  { nome: "ti", titulo: "TI" },
-  { nome: "sistema", titulo: "Sistema" },
+export const GRUPOS_DO_MENU: { nome: string; titulo: string; icone: string }[] = [
+  { nome: "comercial", titulo: "Comercial", icone: "trending_up" },
+  { nome: "academico", titulo: "Acadêmico", icone: "school" },
+  { nome: "premiacoes_internas", titulo: "Premiações", icone: "emoji_events" },
+  { nome: "ferramentas", titulo: "Ferramentas", icone: "construction" },
+  { nome: "vocacional", titulo: "Vocacional", icone: "explore" },
+  { nome: "meta", titulo: "Campanhas Meta", icone: "campaign" },
+  { nome: "chamados", titulo: "Chamados", icone: "support_agent" },
+  { nome: "ti", titulo: "TI", icone: "memory" },
+  { nome: "sistema", titulo: "Sistema", icone: "settings" },
 ];
 
 export function item(pagina: string, telasNovas: ReadonlySet<string>): ItemMenu {
@@ -48,7 +56,11 @@ export function item(pagina: string, telasNovas: ReadonlySet<string>): ItemMenu 
   };
 }
 
-export function montarMenu(nav: Nav, telasNovas: ReadonlySet<string>): Menu {
+export function montarMenu(
+  nav: Nav,
+  telasNovas: ReadonlySet<string>,
+  fixadas?: { fixadas: string[]; mais_usadas: string[] } | null,
+): Menu {
   const permitidas = new Set(nav.paginas.filter((p) => p in TITULOS));
   const usadas = new Set<string>();
   const grupos: GrupoMenu[] = [];
@@ -69,7 +81,7 @@ export function montarMenu(nav: Nav, telasNovas: ReadonlySet<string>): Menu {
     const unicas = paginas.filter((p) => !usadas.has(p));
     unicas.forEach((p) => usadas.add(p));
     if (unicas.length) {
-      grupos.push({ nome: g.nome, titulo: g.titulo, itens: unicas.map((p) => item(p, telasNovas)) });
+      grupos.push({ nome: g.nome, titulo: g.titulo, icone: g.icone, itens: unicas.map((p) => item(p, telasNovas)) });
     }
   }
 
@@ -84,5 +96,27 @@ export function montarMenu(nav: Nav, telasNovas: ReadonlySet<string>): Menu {
     })
     .map((p) => item(p, telasNovas));
 
-  return { avulsas, grupos };
+  return { fixadas: secaoFixadas(fixadas, avulsas, grupos), avulsas, grupos };
+}
+
+/** Só entra o que o próprio menu mostra: não se confia só na API. */
+function secaoFixadas(
+  dados: { fixadas: string[]; mais_usadas: string[] } | null | undefined,
+  avulsas: ItemMenu[],
+  grupos: GrupoMenu[],
+): SecaoFixadas | null {
+  if (!dados) return null;
+  const visiveis = new Map<string, ItemMenu>();
+  for (const i of [...avulsas, ...grupos.flatMap((g) => g.itens)]) visiveis.set(i.pagina, i);
+  const escolher = (paginas: string[]) =>
+    paginas.map((p) => visiveis.get(p)).filter((i): i is ItemMenu => i !== undefined);
+  const fix = escolher(dados.fixadas);
+  if (fix.length) return { titulo: "Fixadas", itens: fix };
+  const mais = escolher(dados.mais_usadas);
+  return mais.length ? { titulo: "Mais usadas", itens: mais } : null;
+}
+
+/** Grupo do menu que contém a tela, ou null (tela avulsa). */
+export function grupoDaTela(menu: Menu, pagina: string): GrupoMenu | null {
+  return menu.grupos.find((g) => g.itens.some((i) => i.pagina === pagina)) ?? null;
 }

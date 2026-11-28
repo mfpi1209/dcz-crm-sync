@@ -325,3 +325,14 @@ def test_api_me_sem_login_401():
     with patch.dict(os.environ, {"DEV_SKIP_AUTH": ""}):
         r = app.test_client().get("/api/me")
     assert r.status_code == 401
+
+
+def test_visivel_esconde_tela_de_grupo_oculto():
+    """`pode` deixa passar tela do grupo TI para quem não é admin; `visivel` segue o menu."""
+    m = navegacao.Menu("viewer", {"page_views", "repasse"}, "Supervisor Comercial", "f@x")
+    assert m.pode("page_views") is True
+    assert m.visivel("page_views") is False
+    assert m.visivel("repasse") is True
+    assert m.visivel("dashboard") is True
+    adm = navegacao.Menu("admin", set(ALL_PAGES), "", "f@x")
+    assert adm.visivel("page_views") is True

@@ -1090,6 +1090,26 @@ def _ensure_page_views_table():
         logger.warning("Could not ensure page_views table: %s", e)
 
 
+def _ensure_nav_fixadas_table():
+    """Telas fixadas no menu do front novo, por usuário (ordem = posição na lista)."""
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS nav_fixadas (
+                    user_id   INTEGER NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+                    page      TEXT    NOT NULL,
+                    ordem     SMALLINT NOT NULL DEFAULT 0,
+                    criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (user_id, page)
+                )
+            """)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("Could not ensure nav_fixadas table: %s", e)
+
+
 def _ensure_avisos_tables():
     """Create avisos + aviso_lido tables."""
     try:
