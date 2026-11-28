@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, FUTURO_ROUTER } from "./App";
 import type { Me, Nav } from "./me";
 import { GRUPOS_DO_MENU, grupoDaTela, montarMenu } from "./menu";
+import { NOMES_TELAS_NOVAS } from "./telas";
 
 function nav(parcial: Partial<Nav>): Nav {
   return {
@@ -74,6 +75,16 @@ describe("montarMenu", () => {
     const porNome = Object.fromEntries(m.avulsas.map((i) => [i.pagina, i]));
     expect(porNome.page_views).toMatchObject({ nova: true, href: "/app/page_views", titulo: "Uso do Dashboard" });
     expect(porNome.dashboard).toMatchObject({ nova: false, href: "/#dashboard" });
+  });
+
+  it("Repasse já é tela do front novo", () => {
+    const m = montarMenu(
+      nav({ paginas: ["repasse", "meus_atendimentos"], secoes: { comercial: true }, grupos: { comercial: ["repasse", "meus_atendimentos"] } }),
+      NOMES_TELAS_NOVAS,
+    );
+    const porNome = Object.fromEntries(m.grupos[0].itens.map((i) => [i.pagina, i]));
+    expect(porNome.repasse).toMatchObject({ nova: true, href: "/app/repasse", titulo: "Repasse" });
+    expect(porNome.meus_atendimentos).toMatchObject({ nova: false, href: "/#meus_atendimentos" });
   });
 });
 
@@ -147,7 +158,7 @@ describe("App", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (entrada) => {
       const url = String(entrada);
       if (url === "/api/me") return json(me);
-      if (url === "/api/me/fixadas") return json({ fixadas: [], mais_usadas: ["repasse"] });
+      if (url === "/api/me/fixadas") return json({ fixadas: [], mais_usadas: ["meus_atendimentos"] });
       if (url === "/api/avisos/nao-lidos") return json({ count: 0 });
       return json({}, 404);
     });
@@ -170,9 +181,9 @@ describe("App", () => {
     nav: nav({
       is_comercial: true,
       pagina_inicial: "minha_performance",
-      paginas: ["minha_performance", "repasse", "profile"],
+      paginas: ["minha_performance", "meus_atendimentos", "profile"],
       secoes: { comercial: true },
-      grupos: { comercial: ["repasse"] },
+      grupos: { comercial: ["meus_atendimentos"] },
     }),
   };
 
@@ -180,17 +191,17 @@ describe("App", () => {
     abrir(ME);
     expect(await screen.findByText("Olá, Fulano")).toBeTruthy();
     const menu = within(screen.getByRole("navigation", { name: "Menu principal" }));
-    // Repasse aparece em Mais usadas e no grupo Comercial (que começa fechado).
+    // Meus Atendimentos (ainda no painel atual) aparece em Mais usadas e no grupo Comercial (que começa fechado).
     fireEvent.click(menu.getByRole("button", { name: "Comercial" }));
-    const link = within(menu.getByRole("list", { name: "Comercial" })).getByRole("link", { name: "Repasse" });
-    expect(link.getAttribute("href")).toBe("/#repasse");
+    const link = within(menu.getByRole("list", { name: "Comercial" })).getByRole("link", { name: "Meus Atendimentos" });
+    expect(link.getAttribute("href")).toBe("/#meus_atendimentos");
     const maisUsadas = within(await menu.findByRole("list", { name: "Mais usadas" }));
-    expect(maisUsadas.getByRole("link", { name: "Repasse" }).getAttribute("href")).toBe("/#repasse");
+    expect(maisUsadas.getByRole("link", { name: "Meus Atendimentos" }).getAttribute("href")).toBe("/#meus_atendimentos");
     expect(screen.queryByRole("link", { name: "Dashboard" })).toBeNull();
   });
 
   it("tela que não existe no front novo mostra aviso", async () => {
-    abrir(ME, "/repasse");
+    abrir(ME, "/meus_atendimentos");
     expect(await screen.findByText("Tela não encontrada")).toBeTruthy();
   });
 

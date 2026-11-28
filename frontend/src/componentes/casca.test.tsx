@@ -23,9 +23,9 @@ function me(): Me {
       is_comercial: false,
       is_suporte_comercial: false,
       pagina_inicial: "dashboard",
-      paginas: ["dashboard", "avisos", "repasse", "page_views"],
+      paginas: ["dashboard", "avisos", "meus_atendimentos", "page_views"],
       secoes: { comercial: true, ti: true },
-      grupos: { comercial: ["repasse"], ti: ["page_views"] },
+      grupos: { comercial: ["meus_atendimentos"], ti: ["page_views"] },
     },
   };
 }
@@ -95,11 +95,11 @@ describe("casca nova", () => {
     const menu = await menuPrincipal();
     const grupo = menu.getByRole("button", { name: "Comercial" });
     expect(grupo.getAttribute("aria-expanded")).toBe("false");
-    expect(menu.queryByRole("link", { name: "Repasse" })).toBeNull();
+    expect(menu.queryByRole("link", { name: "Meus Atendimentos" })).toBeNull();
 
     fireEvent.click(grupo);
     expect(grupo.getAttribute("aria-expanded")).toBe("true");
-    expect(menu.getByRole("link", { name: "Repasse" }).getAttribute("href")).toBe("/#repasse");
+    expect(menu.getByRole("link", { name: "Meus Atendimentos" }).getAttribute("href")).toBe("/#meus_atendimentos");
     expect(JSON.parse(localStorage.getItem("eduit-menu-grupos") ?? "[]")).toContain("comercial");
 
     unmount();

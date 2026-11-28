@@ -4,6 +4,19 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-28 — Fase 4: Repasse no front novo (`/app/repasse`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar a tela Repasse para o front novo, no visual novo, com os mesmos números e o mesmo comportamento da antiga (`_repasse.html` + `repasse.js`). As APIs de `routes/repasse.py` não mudam.
+- **Tela nova (`frontend/src/paginas/Repasse.tsx` + `paginas/repasse/`):**
+  - filtros numa linha (ciclo, turma dependente do ciclo, tipo com "Mensalidade" por padrão, taxa), Limpar e Atualizar à direita;
+  - KPIs (Recebido e Consultores só admin), cartões de consultor no lugar do carrossel (iniciais, selo "1", alunos, barra, recebido só admin, repasse) com busca no cliente; clique abre o detalhe (RGM, tipo, turma, ciclo, valor recebido só admin, repasse) com busca;
+  - admin: planilha e matriculados paginados (50) com busca de 300 ms, filtros próprios dos matriculados e links CSV com os mesmos parâmetros;
+  - consultor: abre direto no próprio detalhe, banner "Seus dados", sem planilha, matriculados e CSV, taxa só leitura.
+- **Diferenças de propósito:** a busca roda sozinha ao abrir e a cada troca de filtro (a antiga esperava o botão Buscar); trocar filtro fecha o detalhe, como o `repLoad`; taxa inválida mostra aviso na tela (não `alert`); erro do servidor aparece na tela e na planilha/matriculados.
+- **Taxa:** o repasse continua calculado no navegador (valor × taxa), e muda na hora em que se digita; "Salvar taxa" (ou Enter) faz `PUT {taxa}` só para admin.
+- **Menu antigo:** o item Repasse do `_sidebar.html` **continua** na tela antiga até o usuário aprovar. `tests/test_front_novo.py` passou a checar o link novo só para `TELAS_APROVADAS` (hoje `page_views`); ao aprovar uma tela, ela entra nessa lista no mesmo PR que troca o link.
+- **Testes:** `paginas/Repasse.test.tsx` (24). Os testes do menu, da busca e da casca usavam Repasse como exemplo de tela antiga; passaram a usar Meus Atendimentos, e o menu ganhou um teste de que Repasse abre em `/app/repasse`.
+
 ### 2026-11-28 — Fase 4: menu do painel atual abre a tela nova de Uso do Dashboard
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** o usuário comparou as duas telas em produção e aprovou trocar o link. Publicado depois do visual novo (entrada abaixo), para ninguém cair na casca antiga.

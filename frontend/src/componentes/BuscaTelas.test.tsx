@@ -29,9 +29,9 @@ const me: Me = {
     is_comercial: false,
     is_suporte_comercial: false,
     pagina_inicial: "dashboard",
-    paginas: ["dashboard", "avisos", "repasse", "page_views"],
+    paginas: ["dashboard", "avisos", "meus_atendimentos", "page_views"],
     secoes: { comercial: true, ti: true },
-    grupos: { comercial: ["repasse"], ti: ["page_views"] },
+    grupos: { comercial: ["meus_atendimentos"], ti: ["page_views"] },
   },
 };
 
@@ -83,9 +83,9 @@ describe("busca de telas", () => {
     const ir = vi.spyOn(navegador, "irPara").mockImplementation(() => {});
     fireEvent.keyDown(document, { key: "k", metaKey: true });
     const campo2 = await screen.findByRole("combobox", { name: "Buscar tela" });
-    fireEvent.change(campo2, { target: { value: "repasse" } });
+    fireEvent.change(campo2, { target: { value: "atendimentos" } });
     fireEvent.keyDown(campo2, { key: "Enter" });
-    expect(ir).toHaveBeenCalledWith("/#repasse");
+    expect(ir).toHaveBeenCalledWith("/#meus_atendimentos");
   });
 
   it("ArrowUp dá a volta e clique abre a tela", async () => {

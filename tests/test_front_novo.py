@@ -195,10 +195,29 @@ def test_ha_tela_migrada():
     assert "page_views" in _telas_novas()
 
 
+def test_repasse_migrado_mas_menu_antigo_ainda_na_tela_antiga():
+    """Repasse está no front novo, mas o link do menu antigo só troca após a aprovação."""
+    assert "repasse" in _telas_novas()
+    assert "repasse" not in TELAS_APROVADAS
+
+
+# Roteiro de cada tela (AGENTS.md, 28/11): 1) entra em TELAS_NOVAS e é publicada;
+# 2) o usuário compara em produção e aprova; 3) só então o item do _sidebar.html
+# passa a /app/<tela>. Por isso a regra do link vale só para as telas já
+# aprovadas, listadas aqui à mão (uma tela recém-migrada, como o Repasse, fica
+# de fora até a aprovação). Ao aprovar, acrescente a tela aqui no mesmo PR que
+# troca o link do menu antigo.
+TELAS_APROVADAS = {"page_views"}
+
+
+def test_telas_aprovadas_estao_no_front_novo():
+    assert TELAS_APROVADAS <= _telas_novas()
+
+
 def test_menu_antigo_leva_as_telas_migradas_ao_front_novo():
-    """Ao migrar uma tela, o item do _sidebar.html passa a abrir /app/<tela>."""
+    """Tela aprovada: o item do _sidebar.html abre /app/<tela>, sem o navigate() antigo."""
     html = (RAIZ / "templates" / "partials" / "_sidebar.html").read_text(encoding="utf-8")
-    for tela in _telas_novas():
+    for tela in TELAS_APROVADAS:
         links = re.findall(rf'<a [^>]*data-page="{re.escape(tela)}"[^>]*>', html)
         assert links, tela
         for a in links:
