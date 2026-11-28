@@ -509,7 +509,8 @@ describe("Dashboard: saúde financeira", () => {
     expect(within(adim).getByText("1.500")).toBeTruthy();
     expect(within(adim).getByText("75,0%")).toBeTruthy();
     expect(secao.getAllByText("25,0%").length).toBeGreaterThan(0);
-    expect(adim.getAttribute("href")).toBe("/#inadimplencia");
+    // Inadimplência também está no front novo: o link segue NOMES_TELAS_NOVAS.
+    expect(adim.getAttribute("href")).toBe("/app/inadimplencia");
     expect(secao.getByText("27/11/2026 10:00")).toBeTruthy();
   });
 

@@ -19,6 +19,10 @@ export interface Me {
   categoria: string | null;
   display_name: string;
   nav: Nav;
+  /** Campos antigos do /api/me que algumas telas ainda leem. */
+  pages?: string[];
+  kommo_user_id?: number | null;
+  is_suporte_comercial?: boolean;
 }
 
 export function useMe() {

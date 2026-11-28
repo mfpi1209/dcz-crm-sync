@@ -3,9 +3,11 @@ import { CompararCursos, InfoCursos, LocalizacaoPolos, RecomendacaoCursos } from
 import { Repasse } from "./paginas/Repasse";
 import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
 
-// Carregadas sob demanda: levam o chart.js, que fica num pedaço separado do pacote principal.
+// Telas com gráfico carregam sob demanda: levam o chart.js, que fica num pedaço separado
+// do pacote principal. O App.tsx põe cada tela num Suspense e num ErroTela.
 const Inadimplencia = lazy(() => import("./paginas/Inadimplencia").then((m) => ({ default: m.Inadimplencia })));
 const Dashboard = lazy(() => import("./paginas/Dashboard").then((m) => ({ default: m.Dashboard })));
+const MinhaPerformance = lazy(() => import("./paginas/MinhaPerformance").then((m) => ({ default: m.MinhaPerformance })));
 
 /**
  * Telas já migradas para o front novo: chave = mesmo nome da página no painel
@@ -17,6 +19,7 @@ const Dashboard = lazy(() => import("./paginas/Dashboard").then((m) => ({ defaul
 export const TELAS_NOVAS: Record<string, ComponentType> = {
   page_views: UsoDoDashboard, // etapa 3 (27/11): piloto
   repasse: Repasse, // 28/11: no menu antigo, o link só troca depois da aprovação
+  minha_performance: MinhaPerformance, // 28/11: idem
   dashboard: Dashboard, // 28/11: idem (supervisores ainda abrem o painel atual)
   inadimplencia: Inadimplencia, // 28/11: idem, aguarda aprovação
   comparar_cursos: CompararCursos, // 28/11: ferramentas em iframe (static/eduit/app.html)

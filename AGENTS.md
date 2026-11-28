@@ -4,6 +4,29 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-28 — Fase 4: Minha Performance no front novo (`/app/minha_performance`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar a Minha Performance (home dos consultores) para o front novo, com os mesmos dados, números e regras de quem vê o quê da antiga (`_minha_performance.html` + `minha_performance.js`). `routes/minha_performance.py` não muda.
+- **Tela nova (`frontend/src/paginas/MinhaPerformance.tsx` + `paginas/minha-performance/`):**
+  - **quem vê o quê (igual à antiga):** consultor vê o próprio `kommo_user_id` (sem vínculo: aviso, nenhuma busca); login do Suporte Comercial sem Premiação vê a equipe (`suporte_equipe=1`); admin ou quem tem `premiacao_admin` escolhe a equipe, o suporte individual ou os demais agentes e começa na equipe. Só esses chamam `/api/minha-performance/agentes`. `?uid=` abre direto num consultor (o `navigateToPerformance` da antiga);
+  - **filtros numa linha:** consultor, Voltar ao meu painel, campanha (com Ativa/Histórica), abas Performance × Minhas matrículas e Atualizar à direita;
+  - **insights (~1 s):** só ao abrir, trocar consultor ou campanha, e no Atualizar (que refaz só insights e histórico). Na visão de suporte, a mesma mescla da antiga com `/api/comercial-rgm/data` (e o período de meta mais recente quando o da campanha não tem vendas) e o calendário pelo gráfico por dia (`formato.ts`, funções puras com teste);
+  - **Performance:** saldo, potencial, nível, matrículas, dias e medidor; níveis de meta; PIX do dia; ranking; conquistas; desbloqueie; momentum com minigráficos; sequência e heatmap; calendário; progresso por faixa; resumo financeiro; timeline; campanhas anteriores. Na visão de suporte: painel do time (meta, KPIs, matrículas por dia), PIX e calendário, como na antiga;
+  - **Minhas matrículas:** período padrão = meta mais recente (ou mês corrente); De/Até só valem no Filtrar (Limpar e Aplicar meta também buscam); oficiais com pílulas, busca, marca de fora do padrão e "Contar venda/Desfazer" só admin; minha lista com adicionar (oficiais, sync Bwipo com escolha no 409, manual), editar e excluir, com as mesmas validações e mensagens; solicitações de ajuste com lista e envio.
+  - **Gráficos:** `chart.js` 4.4.7 (a versão do painel antigo, só barras, linhas e área), com textos e grade nas cores do tema (`corCss`) e refeitos ao trocar o tema (`useTema` observa a classe do `<html>`). A tela é carregada sob demanda (`lazy` em `telas.tsx`), para o chart.js não pesar no pacote principal.
+- **Telas sob demanda (`App.tsx`):** toda tela vai num `Suspense` dentro de `componentes/ErroTela.tsx` (error boundary com `key` da rota). Se o pacote da tela não carregar (ex.: deploy novo), aparece "Não deu para abrir esta tela." com Recarregar, e o menu continua. As próximas telas com `lazy` só se registram em `TELAS_NOVAS`.
+- **Diferenças de propósito:**
+  - medidor do saldo e anel do PIX viraram número + barra (mesmos números e textos); sem contagem animada, confete nem brilho;
+  - a mensagem do saldo vem com HTML do servidor: só `<br>` e negrito viram elementos, o resto fica texto (a antiga usava `innerHTML`);
+  - calendário: a dica do dia vai no `title` (sem o balão flutuante);
+  - `alert`/`confirm`: erros de validação e de servidor aparecem no próprio formulário; avisos de sucesso no toast; excluir continua com `confirm`;
+  - erro do servidor aparece na tela (a antiga mostrava "Erro ao carregar dados." ou "Nenhuma campanha ativa" para um 400 de agente não vinculado);
+  - a lista de campanhas é lida uma vez (a antiga relia a cada troca);
+  - trocar consultor ou campanha fecha a aba Minhas matrículas e a desmonta: ao reabrir, o De/Até, a busca e as pílulas voltam ao período padrão (a antiga mantinha as datas digitadas no DOM); a aba escondida não busca nada;
+  - selo da fila de aceites do PIX e posição no quadro do ranking sem medalha seguem a antiga.
+- **Menu antigo:** o item continua na tela antiga até o usuário aprovar (`TELAS_APROVADAS` segue só `page_views`).
+- **Testes:** `paginas/MinhaPerformance.test.tsx` (37; inclui os casos negativos: `?uid=` ignorado para consultor e suporte, Premiação sem admin não conta venda, Desfazer com DELETE, aba escondida sem busca, tema dos gráficos) e `componentes/ErroTela.test.tsx` (1): regras puras, consultor (URLs exatas, números de cada bloco, troca de campanha, Atualizar, sem vínculo, sem campanha, erro), admin/Premiação/suporte (equipe por padrão, mescla do Comercial e o recuo de período, escolher e voltar, `?uid=`, suporte sem a lista de agentes) e Minhas matrículas (período padrão, contagens, Filtrar/Limpar/Aplicar meta, contar venda, adicionar com validações, erro ao salvar, sync Bwipo, editar/excluir, ajustes, erro da lista). `chart.js` é trocado por um falso nos testes para conferir os dados dos gráficos. Total no vitest: 158.
+
 ### 2026-11-28 — Fase 4: Dashboard (home) no front novo (`/app/dashboard`)
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** migrar a home de quem não é comercial (`_dashboard.html` + `dashboard.js`) para o front novo, no visual novo, com os mesmos números. As rotas de `routes/dashboard.py`, `kommo_sync.py` e `upload.py` não mudam.
