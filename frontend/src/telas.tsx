@@ -1,6 +1,16 @@
-import type { ComponentType } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import { Repasse } from "./paginas/Repasse";
 import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
+
+// Minha Performance traz o chart.js: carrega só quando a tela abre (fora do pacote principal).
+const MinhaPerformanceAdiada = lazy(() => import("./paginas/MinhaPerformance").then((m) => ({ default: m.MinhaPerformance })));
+function MinhaPerformance() {
+  return (
+    <Suspense fallback={<p className="py-16 text-center text-sm" style={{ color: "var(--text-muted)" }}>Carregando seu painel...</p>}>
+      <MinhaPerformanceAdiada />
+    </Suspense>
+  );
+}
 
 /**
  * Telas já migradas para o front novo: chave = mesmo nome da página no painel
@@ -12,6 +22,7 @@ import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
 export const TELAS_NOVAS: Record<string, ComponentType> = {
   page_views: UsoDoDashboard, // etapa 3 (27/11): piloto
   repasse: Repasse, // 28/11: no menu antigo, o link só troca depois da aprovação
+  minha_performance: MinhaPerformance, // 28/11: idem
 };
 
 export const NOMES_TELAS_NOVAS: ReadonlySet<string> = new Set(Object.keys(TELAS_NOVAS));
