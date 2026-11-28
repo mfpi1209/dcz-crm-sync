@@ -7,6 +7,7 @@ import { grupoDaTela, montarMenu } from "../menu";
 import { NOMES_TELAS_NOVAS } from "../telas";
 import { TITULOS } from "../titulos";
 import { BarraTopo } from "./BarraTopo";
+import { BuscaTelas, type ItemBusca } from "./BuscaTelas";
 import { MenuLateral } from "./MenuLateral";
 
 /** Só usa a resposta das fixadas se tiver o formato esperado; senão o menu segue sem a seção. */
@@ -25,7 +26,6 @@ export function Estrutura() {
   const local = useLocation();
   const pagina = useMatch("/:pagina")?.params.pagina ?? null;
   const [gavetaAberta, setGavetaAberta] = useState(false);
-  // Task 4 encaixa a busca de telas (BuscaTelas) neste estado.
   const [buscaAberta, setBuscaAberta] = useState(false);
   const botaoMenu = useRef<HTMLButtonElement>(null);
 
@@ -33,6 +33,25 @@ export function Estrutura() {
     () => (me.data ? montarMenu(me.data.nav, NOMES_TELAS_NOVAS, fixadas) : null),
     [me.data, fixadas],
   );
+
+  // Telas da busca: avulsas + grupos (as fixadas só repetem o que já está aí).
+  const itensBusca = useMemo<ItemBusca[]>(
+    () =>
+      menu ? [...menu.avulsas, ...menu.grupos.flatMap((g) => g.itens.map((i) => ({ ...i, grupo: g.titulo })))] : [],
+    [menu],
+  );
+
+  // Ctrl/Cmd+K abre (ou fecha) a busca de telas.
+  useEffect(() => {
+    function atalho(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setBuscaAberta((v) => !v);
+      }
+    }
+    document.addEventListener("keydown", atalho);
+    return () => document.removeEventListener("keydown", atalho);
+  }, []);
 
   // Trocou de tela: a gaveta fecha.
   useEffect(() => setGavetaAberta(false), [local.pathname]);
@@ -119,8 +138,7 @@ export function Estrutura() {
         </main>
       </div>
 
-      {/* Task 4: busca de telas (Ctrl K) entra aqui, ex.: <BuscaTelas aberta={buscaAberta} onFechar=... /> */}
-      {buscaAberta && null}
+      <BuscaTelas aberta={buscaAberta} itens={itensBusca} onFechar={() => setBuscaAberta(false)} />
     </div>
   );
 }
