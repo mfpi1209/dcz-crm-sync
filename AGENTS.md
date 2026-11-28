@@ -4,6 +4,27 @@ Este arquivo registra decisões técnicas tomadas em conjunto com agentes Opus, 
 
 ## Decisões técnicas
 
+### 2026-11-28 — Fase 4: Repasse no front novo (`/app/repasse`)
+- **Modelo usado:** Claude Opus 5.5.
+- **Pedido:** migrar a tela Repasse para o front novo, no visual novo, com os mesmos números e o mesmo comportamento da antiga (`_repasse.html` + `repasse.js`). As APIs de `routes/repasse.py` não mudam.
+- **Tela nova (`frontend/src/paginas/Repasse.tsx` + `paginas/repasse/`):**
+  - filtros numa linha (ciclo, turma dependente do ciclo, tipo com "Mensalidade" por padrão, taxa), Limpar, Atualizar e **Buscar** à direita;
+  - **Buscar explícito:** os selects mexem num rascunho; só o Buscar aplica (a rota de agentes é pesada, sem cache, e produção tem 1 worker com 4 threads). A primeira busca é automática. Buscar e Atualizar buscam de novo só agentes, planilha e matriculados (como o `repLoad`), nunca filtros nem taxa; os pedidos usam o `signal` do TanStack Query para cancelar o que ficou velho;
+  - **Limpar** (como o `repReset`): filtros de cima ao padrão e aplicados, busca de consultor limpa, e planilha e matriculados recriados (busca, página, pagamento, mês, dia, nível e tipo "NOVA MATRICULA");
+  - KPIs (Recebido e Consultores só admin), cartões de consultor no lugar do carrossel (iniciais, selo "1", alunos, barra, recebido só admin, repasse) com busca no cliente; clique abre o detalhe (RGM, tipo, turma, ciclo, valor recebido só admin, repasse) com busca;
+  - admin: planilha e matriculados paginados (50) com busca de 300 ms, filtros próprios dos matriculados e links CSV com os mesmos parâmetros;
+  - consultor: abre direto no próprio detalhe, banner "Seus dados", sem planilha, matriculados e CSV, taxa só leitura.
+- **Diferenças de propósito:**
+  - a primeira busca é automática (a antiga esperava o Buscar); depois, só o Buscar aplica, e ele fecha o detalhe, como o `repLoad`;
+  - cartões em grade no lugar do carrossel (sem as setas);
+  - taxa inválida mostra aviso na tela (não `alert`) e os números ficam com a última taxa válida; "Taxa salva." aparece ao lado do campo (não no toast);
+  - matriculados: `ciclo_mat` só vai depois de escolhido (antes, o servidor usa o mais recente e a tela o mostra); mês ou nível que some das opções sai do filtro;
+  - CSV por link: se o servidor falhar, aparece a resposta dele (a antiga dava `alert`);
+  - erro do servidor aparece na tela e dentro da planilha, dos matriculados e do detalhe.
+- **Taxa:** o repasse continua calculado no navegador (valor × taxa), e muda na hora em que se digita; "Salvar taxa" (ou Enter) faz `PUT {taxa}` só para admin.
+- **Menu antigo:** o item Repasse do `_sidebar.html` **continua** na tela antiga até o usuário aprovar. `tests/test_front_novo.py` passou a checar o link novo só para `TELAS_APROVADAS` (hoje `page_views`); ao aprovar uma tela, ela entra nessa lista no mesmo PR que troca o link.
+- **Testes:** `paginas/Repasse.test.tsx` (27). Os testes do menu, da busca e da casca usavam Repasse como exemplo de tela antiga; passaram a usar Meus Atendimentos, e o menu ganhou um teste de que Repasse abre em `/app/repasse`.
+
 ### 2026-11-28 — Fase 4: menu do painel atual abre a tela nova de Uso do Dashboard
 - **Modelo usado:** Claude Opus 5.5.
 - **Pedido:** o usuário comparou as duas telas em produção e aprovou trocar o link. Publicado depois do visual novo (entrada abaixo), para ninguém cair na casca antiga.

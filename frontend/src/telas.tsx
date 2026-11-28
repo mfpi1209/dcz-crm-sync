@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { Repasse } from "./paginas/Repasse";
 import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
 
 /**
@@ -10,6 +11,7 @@ import { UsoDoDashboard } from "./paginas/UsoDoDashboard";
  */
 export const TELAS_NOVAS: Record<string, ComponentType> = {
   page_views: UsoDoDashboard, // etapa 3 (27/11): piloto
+  repasse: Repasse, // 28/11: no menu antigo, o link só troca depois da aprovação
 };
 
 export const NOMES_TELAS_NOVAS: ReadonlySet<string> = new Set(Object.keys(TELAS_NOVAS));

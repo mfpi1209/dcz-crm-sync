@@ -429,6 +429,26 @@ h1, h2, h3 {
   background: var(--surface-variant);
 }
 
+/* Cartão de consultor (Repasse): clicável, com a seleção em destaque. */
+.cartao-agente {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+.cartao-agente:hover {
+  border-color: var(--outline);
+}
+.cartao-agente[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: var(--primary-light);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.cartao-agente:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* Estrela do item: aparece com o mouse ou com foco; sempre nas fixadas. */
 .estrela-item {
   position: absolute;
