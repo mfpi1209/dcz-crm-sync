@@ -455,6 +455,14 @@ describe("Minha Performance — admin, Premiação e suporte", () => {
     expect(screen.getByRole("region", { name: "Calendário de resultados" })).toBeTruthy();
   });
 
+  it("enquanto o Dashboard Comercial não responde, diz o que está esperando", async () => {
+    abrir("admin", { "GET /api/comercial-rgm/data": (() => new Promise(() => {})) as unknown as Rota });
+    await screen.findByText(/Buscando as vendas do time no Dashboard Comercial/);
+    expect(gets("/api/minha-performance/insights")).toEqual(["/api/minha-performance/insights?suporte_equipe=1&campanha_id=7"]);
+    expect(screen.queryByText("Carregando seu painel...")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Suporte comercial — time" })).toBeNull();
+  });
+
   it("sem vendas no período da campanha, cai no período de meta mais recente", async () => {
     abrir("admin", {
       "GET /api/comercial-rgm/data": (url) => json(url.includes("2026-12-01") ? COMERCIAL : { ok: true, kpis: { vendas: 0, media_diaria: 0 }, evolucao: [] }),
